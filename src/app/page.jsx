@@ -21,11 +21,16 @@ import {
 import { Panel, Badge } from './components/ui';
 import { buildModel, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
 import { scrollToSection, SECTION_IDS, useActiveSection, NAV_GROUPS } from './components/nav';
+import { buildModel, deriveContract, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
+import { scrollToSection, SECTION_IDS, useActiveSection } from './components/nav';
+import { inspectRequest } from '@/lib/validation.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 /* Fallback copy of public/sample_input.json, used only if the static file
-   cannot be fetched (e.g. opened without the Next.js server). */
+   cannot be fetched (e.g. opened without the Next.js server). Typed exactly
+   like the API contract expects — booleans, integers and numbers, never
+   strings. */
 const SAMPLE_FALLBACK = {
   grid_available: [true, false, false, true, false, false, true, true, false, true],
   generator_capacity_kw: 100,
@@ -161,6 +166,20 @@ export default function Page() {
       return;
     }
 
+    /* ---------------------------------------------------------------
+       Contract gate. The SAME validator the API route uses runs here
+       first: a payload with missing fields or mistyped values (numbers
+       as strings, a short grid_available, a malformed fuel_table…) is
+       rejected next to the fields that produced the problem and is
+       never sent. Inputs are never rewritten or defaulted. */
+    const inspection = inspectRequest(parsed);
+    if (!inspection.valid) {
+      setError(inspection.errors.join('\n'));
+      setErrorKind('invalid');
+      setLoading(false);
+      return;
+    }
+
     const payload = JSON.stringify(parsed);
     const startedAt = Date.now();
     const controller = new AbortController();
@@ -232,6 +251,7 @@ export default function Page() {
   /* ---------------------------------------------------- derived view model */
 
   const parse = useMemo(() => parseConfig(jsonInput), [jsonInput]);
+  const contract = useMemo(() => deriveContract(parse), [parse]);
   const inputModel = useMemo(() => buildModel(parse.ok ? parse.data : null, null), [parse]);
   const resultModel = useMemo(() => buildModel(submitted, result), [submitted, result]);
 
@@ -285,9 +305,9 @@ export default function Page() {
       'dark-reasons': result?.status === 'ok' ? `${resultModel.metrics.totalDarkHours ?? 0} shed` : null,
       analytics: result?.status === 'ok' ? `${resultModel.hours.length} hrs` : null,
       'shop-stats': inputModel.summary?.shopCount ? `${inputModel.summary.shopCount} shops` : null,
-      configuration: jsonInput.trim() ? (parse.ok ? 'ready' : 'fix') : null,
+      configuration: jsonInput.trim() ? (contract.state === 'ok' ? 'ready' : 'fix') : null,
     }),
-    [phase, result, resultModel, inputModel, jsonInput, parse.ok]
+    [phase, result, resultModel, inputModel, jsonInput, contract.state]
   );
 
   const onNavigate = useCallback((id) => {
@@ -371,7 +391,7 @@ export default function Page() {
         </div>
       );
     }
-    if (errorKind === 'parse' || errorKind === 'network' || errorKind === 'api') {
+    if (errorKind === 'parse' || errorKind === 'network' || errorKind === 'api' || errorKind === 'invalid') {
       return (
         <div className="no-print space-y-3">
           <Panel id="roster" title="Generator Roster" subtitle="Nothing was solved">
@@ -476,24 +496,100 @@ export default function Page() {
                   onPrint={handlePrint}
                 />
               </div>
+      <TopBar
+        activeId={activeId}
+        chips={chips}
+        onNavigate={onNavigate}
+        solver={solver}
+        lastRun={lastRun}
+        status={result?.status}
+        stale={stale}
+        onRun={handleSubmit}
+        running={loading}
+        canRun={canRun}
+        version={APP_VERSION}
+      />
+
+      <main className="content">
+        {/* printed letterhead — screen-hidden */}
+        <div className="print-only mb-2">
+          <div className="flex items-baseline justify-between gap-4 border-b border-hairline pb-2">
+            <div className="min-w-0">
+              <h1 className="text-[16px] font-bold tracking-tight text-ink">Who Stays On? — Generator Schedule</h1>
+              <p className="text-[10.5px] text-ink-faint">
+                {fmtNumber(resultModel.summary?.shopCount)} shops · {fmtNumber(resultModel.summary?.outageHours)} outage
+                hours · {fmtNumber(resultModel.capacity)} kW capacity · {fmtLitres(resultModel.summary?.fuelBudget)} L
+                budget · value {fmtNumber(result?.value_total)} · fuel {fmtLitres(result?.fuel_total_litres)} L
+              </p>
             </div>
-
-            {resultsArea()}
-
-            <footer className="no-print mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline pt-3 text-[10.5px] text-ink-faint">
-              <span className="mono">Who Stays On? · v{APP_VERSION}</span>
-              <span>Exact branch &amp; bound · step-wise fuel table · integer hundredths arithmetic</span>
-              <span className="ml-auto inline-flex items-center gap-1.5">
-                <span
-                  className={engine === 'online' ? 'dot dot-live' : engine === 'offline' ? 'dot dot-bad' : 'dot dot-idle'}
-                  aria-hidden="true"
-                />
-                /api/health {engine}
-              </span>
-            </footer>
-          </main>
+            <p className="text-right text-[9.5px] leading-tight text-ink-muted">
+              {run.at ? `Run ${run.at}` : 'No run recorded'}
+              <br />
+              v{APP_VERSION} · 10:00–19:00
+            </p>
+          </div>
         </div>
-      </div>
+
+        <section id="overview" className="section-anchor space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2 px-0.5">
+            <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Summary</h2>
+            {stale && phase === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
+            <Badge tone="mute" className="ml-auto">
+              {model.hours.length
+                ? `${model.hours.length} slots · ${fmtNumber(model.summary?.shopCount)} shops`
+                : 'No configuration loaded'}
+            </Badge>
+          </div>
+          <SummaryCards model={model} phase={phase} errorCount={apiLines.length} result={result} />
+        </section>
+
+        {phase === 'ok' ? <SuccessStrip model={resultModel} lastRun={lastRun} stale={stale} /> : null}
+
+        <div className="no-print grid items-start gap-3 xl:grid-cols-12">
+          <div className="min-w-0 xl:col-span-7">
+            <ConfigPanel
+              jsonInput={jsonInput}
+              onChange={setInputText}
+              onFile={handleFileUpload}
+              onLoadSample={handleLoadSample}
+              onClear={handleClear}
+              onRun={handleSubmit}
+              running={loading}
+              parse={parse}
+              summary={inputModel.summary || {}}
+              contract={contract}
+              apiErrors={errorKind === 'api' ? apiLines : null}
+              serverNote={errorKind === 'network' ? error : null}
+              uploadError={uploadError}
+              stale={stale}
+            />
+          </div>
+          <div className="min-w-0 xl:col-span-5">
+            <RunPanel
+              phase={phase}
+              run={run}
+              result={result}
+              model={submitted ? resultModel : inputModel}
+              onDownload={handleDownload}
+              onPrint={handlePrint}
+            />
+          </div>
+        </div>
+
+        {resultsArea()}
+
+        <footer className="no-print mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline pt-3 text-[10.5px] text-ink-faint">
+          <span className="mono">Who Stays On? · v{APP_VERSION}</span>
+          <span>Exact branch &amp; bound · step-wise fuel table · integer hundredths arithmetic</span>
+          <span className="ml-auto inline-flex items-center gap-1.5">
+            <span
+              className={engine === 'online' ? 'dot dot-live' : engine === 'offline' ? 'dot dot-bad' : 'dot dot-idle'}
+              aria-hidden="true"
+            />
+            /api/health {engine}
+          </span>
+        </footer>
+      </main>
     </div>
   );
 }

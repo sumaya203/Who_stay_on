@@ -1,6 +1,15 @@
 "use client";
 
-import { ShieldCheck, TrendingUp, Fuel, BatteryCharging, Gauge, CircleAlert, Hourglass } from 'lucide-react';
+import {
+  Store,
+  Zap,
+  PowerOff,
+  Gauge,
+  Fuel,
+  ShieldCheck,
+  Hourglass,
+  CircleAlert,
+} from 'lucide-react';
 import { StatCard } from './ui';
 import { fmtLitres, fmtNumber, fmtPct } from './analytics';
 
@@ -11,121 +20,177 @@ const peakFuel = (model) =>
   }, null);
 
 /**
- * Executive summary. Every figure is read from the API response
- * (`value_total`, `fuel_total_litres`, `roster`, `dark_hours`) or from the
- * configuration the user actually submitted (capacity, fuel budget).
+ * Colorful executive summary — six cards, six meanings:
+ *   blue   total shops          · green  powered shops
+ *   red    shops without power  · teal   generator usage
+ *   amber  fuel consumption     · purple scheduling status
+ * Every figure is read from the API response (`value_total`,
+ * `fuel_total_litres`, `roster`, `dark_hours`) or from the configuration the
+ * user actually submitted — nothing is mocked or invented.
  */
-export default function SummaryCards({ model, phase, errorCount }) {
+export default function SummaryCards({ model, phase, errorCount, result }) {
+  const summary = model?.summary || {};
   const m = model?.metrics || {};
+  const shopStats = model?.shopStats || [];
   const solved = model?.solved;
   const infeasible = phase === 'infeasible';
-  const invalid = phase === 'invalid' || phase === 'network';
+  const invalid = phase === 'invalid' || phase === 'network' || phase === 'parse';
   const running = phase === 'running';
-  const summary = model?.summary || {};
-  const pf = peakFuel(model);
+  const unproven = infeasible && result?.proven === false;
+
+  const shopCount = summary.shopCount ?? null;
+  const poweredShops = solved ? shopStats.filter((s) => !s.darkHours).length : null;
+  const darkShops = solved ? shopStats.filter((s) => s.darkHours > 0).length : null;
+  const outageHours = summary.outageHours ?? 0;
 
   const statusValue = running
     ? 'Solving…'
-    : solved
-      ? 'Solved'
-      : infeasible
-        ? 'Infeasible'
-        : invalid
-          ? 'Rejected'
+    : infeasible
+      ? unproven
+        ? 'Unproven'
+        : 'Infeasible'
+      : invalid
+        ? 'Rejected'
+        : phase === 'ok' || solved
+          ? 'Solved'
           : 'Awaiting run';
 
-  const statusTone = solved ? 'ok' : infeasible || invalid ? 'bad' : running ? 'warn' : undefined;
-  const statusFoot = solved
-    ? `Limits respected across ${m.outageHourCount} outage hr${m.outageHourCount === 1 ? '' : 's'}.`
-    : infeasible
-      ? 'No schedule satisfies every hard constraint.'
-      : invalid
-        ? `${errorCount ?? 0} issue${errorCount === 1 ? '' : 's'} returned by the API.`
-        : 'Run the optimizer to populate this view.';
+  const statusIcon = running
+    ? Hourglass
+    : infeasible || invalid
+      ? CircleAlert
+      : phase === 'ok' || solved
+        ? ShieldCheck
+        : Hourglass;
+
+  const statusFoot = infeasible
+    ? unproven
+      ? 'Search window closed before infeasibility could be proven.'
+      : 'No schedule satisfies every hard constraint.'
+    : invalid
+      ? `${fmtNumber(errorCount ?? 0)} input issue${errorCount === 1 ? '' : 's'} — fix the contract fields.`
+      : running
+        ? 'Branch & bound search in progress…'
+        : phase === 'ok' || solved
+          ? `Limits respected across ${fmtNumber(m.outageHourCount)} outage hour${m.outageHourCount === 1 ? '' : 's'}.`
+          : 'Run the optimizer to populate this view.';
+
+  const pf = peakFuel(model);
 
   return (
-    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="summary-grid">
       <StatCard
-        label="Solver status"
-        tone={statusTone}
-        icon={solved ? ShieldCheck : running ? Hourglass : CircleAlert}
-        value={<span className={solved ? 'text-ok' : infeasible || invalid ? 'text-rose' : 'text-ink-muted'}>{statusValue}</span>}
-        foot={statusFoot}
+        accent="blue"
+        label="Total shops"
+        icon={Store}
+        value={shopCount}
+        unit={shopCount === 1 ? 'shop' : 'shops'}
+        foot={
+          <>
+            <span className="num">{fmtNumber(summary.mandatoryCount)}</span> mandatory ·{' '}
+            <span className="num">{fmtNumber(summary.normalCount)}</span> normal ·{' '}
+            <span className="num">{fmtNumber(summary.totalDemandKw)}</span> kW demand
+          </>
+        }
       />
 
       <StatCard
-        label="Value captured"
-        icon={TrendingUp}
-        tone={solved ? 'ok' : undefined}
-        value={solved ? fmtNumber(m.valueTotal) : null}
+        accent="green"
+        label="Powered shops"
+        icon={Zap}
+        value={poweredShops}
         foot={
           solved ? (
-            <span>
-              booked on generator hours · <span className="num">{fmtNumber(m.potentialValueTotal)}</span> was on offer
-            </span>
+            outageHours > 0 ? (
+              <>
+                never shed across <span className="num">{fmtNumber(outageHours)}</span> outage hour
+                {outageHours === 1 ? '' : 's'}
+              </>
+            ) : (
+              'all-grid day — every shop stayed on mains'
+            )
           ) : (
-            'Value booked on generator hours only.'
+            'shops with zero dark hours after a run'
           )
         }
       />
 
       <StatCard
-        label="Total fuel consumed"
+        accent="red"
+        label="Shops without power"
+        icon={PowerOff}
+        value={darkShops}
+        foot={
+          solved ? (
+            m.totalDarkHours ? (
+              <>
+                <span className="num">{fmtNumber(m.totalDarkHours)}</span> shed hour
+                {m.totalDarkHours === 1 ? '' : 's'} explained by the engine
+              </>
+            ) : (
+              'nothing was shed'
+            )
+          ) : (
+            'shops with at least one dark hour after a run'
+          )
+        }
+      />
+
+      <StatCard
+        accent="teal"
+        label="Generator usage"
+        icon={Gauge}
+        meterTone="teal"
+        value={solved ? fmtPct(m.avgLoadPct) : null}
+        meter={solved ? m.avgLoadPct : null}
+        foot={
+          solved ? (
+            <>
+              peak <span className="num">{fmtNumber(m.peakLoadKw)}</span> kW ({fmtPct(m.peakLoadPct)}) at {m.peakLoadHour} ·{' '}
+              <span className="num">{fmtNumber(summary.capacityKw)}</span> kW cap
+            </>
+          ) : (
+            <>
+              <span className="num">{fmtNumber(summary.totalDemandKw)}</span> kW demand vs{' '}
+              <span className="num">{fmtNumber(summary.capacityKw)}</span> kW capacity
+            </>
+          )
+        }
+      />
+
+      <StatCard
+        accent="amber"
+        label="Fuel consumption"
         icon={Fuel}
-        tone={solved ? 'warn' : undefined}
+        meterTone={m.budgetUsedPct >= 0.85 ? 'rose' : 'amber'}
         value={solved ? fmtLitres(m.fuelTotal) : null}
         unit={solved ? 'L' : undefined}
         meter={solved ? m.budgetUsedPct : null}
         foot={
           solved ? (
-            <span>
-              <span className="num">{fmtPct(m.budgetUsedPct, 1)}</span> of <span className="num">{fmtLitres(m.budget)}</span> L
+            <>
+              <span className="num">{fmtPct(m.budgetUsedPct, 1)}</span> of{' '}
+              <span className="num">{fmtLitres(m.budget)}</span> L
               {pf ? (
                 <>
                   {' '}· peak <span className="num">{fmtLitres(pf.v)}</span> L at {pf.label}
                 </>
               ) : null}
-            </span>
+            </>
           ) : (
-            'Step-table burn for the scheduled load.'
+            <>
+              budget <span className="num">{fmtLitres(summary.fuelBudget)}</span> L configured
+            </>
           )
         }
       />
 
       <StatCard
-        label="Remaining fuel budget"
-        icon={BatteryCharging}
-        value={solved ? fmtLitres(m.fuelRemaining) : summary.fuelBudget !== undefined ? fmtLitres(summary.fuelBudget) : null}
-        unit="L"
-        // the meter tracks the value shown: the share of the budget still unspent
-        meter={solved && m.budget > 0 ? m.fuelRemaining / m.budget : null}
-        foot={
-          solved
-            ? `${fmtLitres(m.budget)} L budgeted − ${fmtLitres(m.fuelTotal)} L used${
-                m.fuelRemaining === 0 ? ' · fully committed' : ''
-              }`
-            : `Configured as ${fmtLitres(summary.fuelBudget)} L.`
-        }
-      />
-
-      <StatCard
-        label="Generator capacity"
-        icon={Gauge}
-        value={summary.capacityKw !== undefined && summary.capacityKw !== null ? fmtNumber(summary.capacityKw) : null}
-        unit="kW"
-        meter={solved ? m.avgLoadPct : null}
-        foot={
-          solved ? (
-            <span>
-              peak <span className="num">{fmtNumber(m.peakLoadKw)}</span> kW ({fmtPct(m.peakLoadPct)}) at {m.peakLoadHour} · avg{' '}
-              <span className="num">{fmtPct(m.avgLoadPct)}</span>
-            </span>
-          ) : (
-            <span>
-              Combined shop demand <span className="num">{fmtNumber(summary.totalDemandKw)}</span> kW.
-            </span>
-          )
-        }
+        accent="purple"
+        label="Scheduling status"
+        icon={statusIcon}
+        value={<span className={phase === 'ok' || solved ? 'text-ok' : unproven || running ? 'text-amber' : infeasible || invalid ? 'text-rose' : 'text-ink-muted'}>{statusValue}</span>}
+        foot={statusFoot}
       />
     </div>
   );

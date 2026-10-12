@@ -9,35 +9,20 @@ import {
 } from 'lucide-react';
 
 /**
- * Every entry maps to a real section rendered on the dashboard — no phantom
- * routes. `chip` values are supplied by the page from actual run data.
+ * Top-navigation tabs. Every entry maps to a real section rendered on the
+ * dashboard — no phantom routes. `chip` values are supplied by the page from
+ * actual run data.
  */
-export const NAV_GROUPS = [
-  {
-    label: 'Dashboard',
-    items: [{ id: 'overview', label: 'Executive summary', icon: LayoutDashboard }],
-  },
-  {
-    label: 'Optimization results',
-    items: [
-      { id: 'roster', label: 'Generator roster', icon: Table2 },
-      { id: 'dark-reasons', label: 'Dark hours', icon: CircleAlert },
-    ],
-  },
-  {
-    label: 'Energy analytics',
-    items: [
-      { id: 'analytics', label: 'Hourly load & fuel', icon: BarChart3 },
-      { id: 'shop-stats', label: 'Shop statistics', icon: Boxes },
-    ],
-  },
-  {
-    label: 'Configuration',
-    items: [{ id: 'configuration', label: 'Input & solver', icon: SlidersHorizontal }],
-  },
+export const NAV_ITEMS = [
+  { id: 'overview', label: 'Summary', icon: LayoutDashboard },
+  { id: 'roster', label: 'Roster', icon: Table2 },
+  { id: 'dark-reasons', label: 'Dark hours', icon: CircleAlert },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'shop-stats', label: 'Shops', icon: Boxes },
+  { id: 'configuration', label: 'Configuration', icon: SlidersHorizontal },
 ];
 
-export const SECTION_IDS = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id));
+export const SECTION_IDS = NAV_ITEMS.map((item) => item.id);
 
 /** Scroll spy: the last section that has scrolled past the sticky header. */
 export function useActiveSection(ids) {
@@ -54,7 +39,7 @@ export function useActiveSection(ids) {
       for (const id of ids) {
         const el = document.getElementById(id);
         if (!el) continue;
-        const top = el.getBoundingClientRect().top - 150;
+        const top = el.getBoundingClientRect().top - 160;
         if (top <= 0 && top > bestTop) {
           bestTop = top;
           current = id;
@@ -67,7 +52,7 @@ export function useActiveSection(ids) {
         for (const id of ids) {
           const el = document.getElementById(id);
           if (!el) continue;
-          const dist = Math.abs(el.getBoundingClientRect().top - 150);
+          const dist = Math.abs(el.getBoundingClientRect().top - 160);
           if (dist < closestDist) {
             closestDist = dist;
             closest = id;
@@ -96,11 +81,10 @@ export function useActiveSection(ids) {
   return activeId;
 }
 
-export function scrollToSection(id, setOpen) {
+export function scrollToSection(id) {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(id);
   if (!el) return;
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-  if (setOpen) setOpen(false);
 }

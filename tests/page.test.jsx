@@ -347,6 +347,93 @@ describe('page wiring: failure handling', () => {
   });
 });
 
+describe('page wiring: the payload contract is enforced before submit', () => {
+  it('blocks a mistyped payload before it reaches the API and shows each message next to its field', async () => {
+    const user = userEvent.setup();
+    const calls = stubFetch({ '/api/health': jsonRes({ status: 'ok' }) });
+    render(<Page />);
+
+    // every top-level field wrong, exactly the shape that used to reach the
+    // optimizer and come back as a wall of unstructured errors
+    await typeIntoEditor(
+      user,
+      JSON.stringify({
+        grid_available: [true, false, true],
+        generator_capacity_kw: '100',
+        fuel_budget_litres: '50',
+        max_consecutive_dark: -1,
+        fuel_table: [],
+        shops: 'A,B,C',
+      })
+    );
+    await user.click(screen.getAllByRole('button', { name: /Run Optimizer/ })[0]);
+
+    // nothing is sent to the engine
+    expect(calls.filter((c) => c.url === '/api/roster')).toHaveLength(0);
+    expect((await screen.findAllByText('Invalid input — nothing was solved')).length).toBeGreaterThan(0);
+
+    // every message sits in the contract list next to the field that produced it
+    const contract = screen.getByRole('group', { name: 'Payload contract' });
+    expect(within(contract).getByText('grid_available must be an array of exactly 10 booleans')).toBeInTheDocument();
+    expect(within(contract).getByText('generator_capacity_kw must be a positive integer')).toBeInTheDocument();
+    expect(within(contract).getByText('fuel_budget_litres must be a nonnegative number')).toBeInTheDocument();
+    expect(within(contract).getByText('max_consecutive_dark must be a nonnegative integer')).toBeInTheDocument();
+    expect(within(contract).getByText('fuel_table must be a non-empty array')).toBeInTheDocument();
+    expect(within(contract).getByText('shops must be an array')).toBeInTheDocument();
+    expect(within(contract).getAllByText('fix before running').length).toBeGreaterThan(0);
+  });
+
+  it('rejects grid_available that is not exactly 10 booleans, including 0/1 entries', async () => {
+    const user = userEvent.setup();
+    const calls = stubFetch({ '/api/health': jsonRes({ status: 'ok' }) });
+    render(<Page />);
+
+    await typeIntoEditor(user, JSON.stringify({ ...sample, grid_available: [1, 0, 1, 0, 1, 0, 1, 0, 1] }));
+    await user.click(screen.getAllByRole('button', { name: /Run Optimizer/ })[0]);
+    expect(calls.filter((c) => c.url === '/api/roster')).toHaveLength(0);
+    expect(screen.getAllByText('grid_available must be an array of exactly 10 booleans').length).toBeGreaterThan(0);
+
+    await typeIntoEditor(user, JSON.stringify({ ...sample, grid_available: Array(10).fill(1) }));
+    expect(screen.getAllByText('grid_available must contain only booleans (not 0/1)').length).toBeGreaterThan(0);
+  });
+
+  it('keeps values untouched and posts the payload unchanged once the contract passes', async () => {
+    const user = userEvent.setup();
+    const calls = stubFetch({
+      '/api/health': jsonRes({ status: 'ok' }),
+      '/api/roster': jsonRes(sampleResponse),
+    });
+    render(<Page />);
+
+    // fix the earlier mistake by hand — no silent coercion anywhere
+    await typeIntoEditor(user, JSON.stringify({ ...sample, generator_capacity_kw: 100 }, null, 2));
+    expect(screen.getByText('all fields valid')).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole('button', { name: /Run Optimizer/ })[0]);
+    await waitFor(() => expect(screen.getByText('Optimization complete')).toBeInTheDocument());
+
+    const post = calls.find((c) => c.url === '/api/roster');
+    expect(JSON.parse(post.options.body)).toEqual(sample);
+  });
+
+  it('shows the contract checklist live while the editor is being repaired', async () => {
+    const user = userEvent.setup();
+    stubFetch({ '/api/health': jsonRes({ status: 'ok' }) });
+    render(<Page />);
+
+    await typeIntoEditor(user, JSON.stringify({ ...sample, fuel_budget_litres: -5 }));
+    const contract = screen.getByRole('group', { name: 'Payload contract' });
+    expect(within(contract).getByText('fuel_budget_litres must be a nonnegative number')).toBeInTheDocument();
+    expect(within(contract).getByText('fix before running')).toBeInTheDocument();
+
+    const editor = screen.getByLabelText('JSON configuration');
+    await user.clear(editor);
+    await user.click(editor);
+    await user.paste(JSON.stringify(sample));
+    await waitFor(() => expect(screen.getByText('all fields valid')).toBeInTheDocument());
+  });
+});
+
 describe('page wiring: dark reasons stay reachable', () => {
   it('opens the engine explanation from a dark cell and closes it on Escape', async () => {
     const user = userEvent.setup();
