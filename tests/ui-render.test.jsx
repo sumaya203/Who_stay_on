@@ -7,7 +7,6 @@ import EnergyAnalytics from '../src/app/components/EnergyAnalytics.jsx';
 import ShopStats from '../src/app/components/ShopStats.jsx';
 import DarkReasons from '../src/app/components/DarkReasons.jsx';
 import ConfigPanel from '../src/app/components/ConfigPanel.jsx';
-import Sidebar from '../src/app/components/Sidebar.jsx';
 import TopBar from '../src/app/components/TopBar.jsx';
 import {
   ErrorState,
@@ -22,7 +21,7 @@ import {
 
 import { solve } from '../src/lib/solver.js';
 import { buildResponse } from '../src/lib/responseBuilder.js';
-import { buildModel, parseConfig, summarizeConfig } from '../src/app/components/analytics.js';
+import { buildModel, deriveContract, parseConfig, summarizeConfig } from '../src/app/components/analytics.js';
 
 const input = {
   grid_available: [true, false, false, true, false, false, true, true, false, true],
@@ -47,6 +46,7 @@ const preRunModel = buildModel(input, null);
 const raw = JSON.stringify(input, null, 2);
 const parse = parseConfig(raw);
 const summary = summarizeConfig(input);
+const contract = deriveContract(parse);
 
 const render = (element) => renderToStaticMarkup(element);
 const clean = (html) => {
@@ -62,10 +62,22 @@ describe('dashboard states render with real data only', () => {
       const html = clean(render(<SummaryCards model={phase === 'idle' ? preRunModel : solvedModel} phase={phase} errorCount={2} />));
       expect(html.length).toBeGreaterThan(200);
     }
-    const solved = render(<SummaryCards model={solvedModel} phase="ok" errorCount={0} />);
-    expect(solved).toContain(String(response.value_total));
+    const solved = clean(render(<SummaryCards model={solvedModel} phase="ok" errorCount={0} result={response} />));
     expect(solved).toContain('Solved');
-    expect(solved).toContain('Value captured');
+    // the six colorful cards, each backed by real data
+    expect(solved).toContain('Total shops');
+    expect(solved).toContain('Powered shops');
+    expect(solved).toContain('Shops without power');
+    expect(solved).toContain('Generator usage');
+    expect(solved).toContain('Fuel consumption');
+    expect(solved).toContain('Scheduling status');
+    expect(solved).toContain(String(summary.shopCount));
+    expect(solved).toContain(String(response.fuel_total_litres));
+    // an unproven infeasible answer is labelled honestly on the status card too
+    const unproven = clean(
+      render(<SummaryCards model={solvedModel} phase="infeasible" errorCount={0} result={{ status: 'infeasible', proven: false }} />)
+    );
+    expect(unproven).toContain('Unproven');
   });
 
   it('renders the roster with ten hour columns and three real states', () => {
@@ -146,6 +158,7 @@ describe('dashboard states render with real data only', () => {
           running={false}
           parse={parse}
           summary={summary}
+          contract={contract}
           apiErrors={null}
           serverNote={null}
           uploadError={null}
@@ -158,6 +171,12 @@ describe('dashboard states render with real data only', () => {
     expect(panel).toContain('Load sample');
     expect(panel).toContain('Run Optimizer');
     expect(panel).toContain('aria-describedby="json-feedback"');
+    // the payload contract lists every documented field with its expected type
+    expect(panel).toContain('Payload contract');
+    for (const field of ['grid_available', 'generator_capacity_kw', 'fuel_budget_litres', 'max_consecutive_dark', 'fuel_table', 'shops']) {
+      expect(panel).toContain(field);
+    }
+    expect(panel).toContain('all fields valid');
 
     const withErrors = render(
       <ConfigPanel
@@ -170,6 +189,7 @@ describe('dashboard states render with real data only', () => {
         running={false}
         parse={parse}
         summary={summary}
+        contract={deriveContract({ ok: true, data: { ...input, generator_capacity_kw: '100' } })}
         apiErrors={['fuel_table coverage must end at or above generator_capacity_kw']}
         serverNote={null}
         uploadError="Could not read config.json."
@@ -179,23 +199,16 @@ describe('dashboard states render with real data only', () => {
     expect(withErrors).toContain('The optimizer returned an error');
     expect(withErrors).toContain('Upload failed');
     expect(withErrors).toContain('coverage');
+    // field-tagged messages land next to the field that produced them
+    expect(withErrors).toContain('generator_capacity_kw must be a positive integer');
+    expect(withErrors).toContain('fix before running');
 
     clean(
       render(
-        <Sidebar
+        <TopBar
           activeId="roster"
           chips={{ roster: '5 slots' }}
-          solver={{ tone: 'live', busy: false, label: 'Engine ready', detail: 'ok' }}
           onNavigate={() => {}}
-          version="1.0.0"
-        />
-      )
-    );
-    clean(
-      render(
-        <TopBar
-          drawerOpen={false}
-          onToggleDrawer={() => {}}
           solver={{ tone: 'live', busy: false, label: 'Engine ready', detail: 'ok' }}
           lastRun={{ at: '10:00:00', ms: 42 }}
           status="ok"
@@ -203,6 +216,7 @@ describe('dashboard states render with real data only', () => {
           onRun={() => {}}
           running={false}
           canRun
+          version="1.1.0"
         />
       )
     );

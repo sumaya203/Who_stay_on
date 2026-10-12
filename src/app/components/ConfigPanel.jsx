@@ -22,6 +22,7 @@ export default function ConfigPanel({
   running,
   parse,
   summary,
+  contract,
   apiErrors,
   serverNote,
   uploadError,
@@ -183,6 +184,62 @@ export default function ConfigPanel({
         </div>
       </div>
 
+      {/* Field-by-field contract check — the same schema the API route
+          enforces, shown next to the field each message belongs to. Nothing is
+          rewritten or defaulted: an invalid field blocks the request until the
+          user fixes it. */}
+      <div className="contract" role="group" aria-label="Payload contract">
+        <div className="contract-head">
+          <span className="field-label">Payload contract · POST /api/roster</span>
+          {contract?.state === 'ok' ? (
+            <Badge tone="ok" icon={CircleCheck}>
+              all fields valid
+            </Badge>
+          ) : contract?.state === 'bad' ? (
+            <Badge tone="rose" icon={CircleAlert}>
+              fix before running
+            </Badge>
+          ) : (
+            <Badge tone="mute">awaiting valid JSON</Badge>
+          )}
+        </div>
+        <ul className="contract-list">
+          {(contract?.fields || []).map((f) => {
+            const Icon = f.status === 'ok' ? CircleCheck : f.status === 'bad' ? CircleAlert : Clock;
+            return (
+              <li key={f.field} className="contract-row" data-status={f.status}>
+                <div className="contract-row-head">
+                  <Icon
+                    size={12}
+                    strokeWidth={2.3}
+                    className={f.status === 'ok' ? 'text-ok' : f.status === 'bad' ? 'text-rose' : 'text-ink-faint'}
+                    aria-hidden="true"
+                  />
+                  <code className="contract-field">{f.field}</code>
+                  <span className="contract-spec">{f.spec}</span>
+                </div>
+                {f.status === 'bad' ? (
+                  f.messages.map((msg, i) => (
+                    <p key={i} className="contract-error">
+                      {msg}
+                    </p>
+                  ))
+                ) : (
+                  <p className="contract-hint">{f.hint}</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {contract?.bodyIssues?.length
+          ? contract.bodyIssues.map((msg, i) => (
+              <p key={i} className="contract-error">
+                {msg}
+              </p>
+            ))
+          : null}
+      </div>
+
       {uploadError ? (
         <Alert tone="amber" icon={CircleAlert} title="Upload failed">
           {uploadError}
@@ -209,7 +266,7 @@ export default function ConfigPanel({
 
       <div className="flex flex-col-reverse items-stretch gap-2.5 border-t border-hairline pt-3.5 sm:flex-row sm:items-center sm:justify-between">
         <p className="help-text max-w-sm sm:order-first">
-          Validation runs in the API route; the dashboard never edits your numbers.
+          The same schema the API enforces runs here first — the dashboard never edits your numbers.
         </p>
         <button type="button" className="btn btn-primary btn-lg" onClick={onRun} disabled={!canRun}>
           {running ? <Spinner size={15} /> : <Play size={15} strokeWidth={2.2} aria-hidden="true" />}

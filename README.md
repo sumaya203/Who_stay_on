@@ -34,6 +34,13 @@ Next.js dashboard that renders exactly what the engine returns.
 A ready-to-run example lives in `public/sample_input.json` and is loadable from
 the dashboard with one click.
 
+The dashboard validates this exact contract **before** submitting, using the
+same `src/lib/validation.js` module the API route uses. A payload with missing
+fields or mistyped values (numbers as strings, a short `grid_available`, a
+malformed `fuel_table`…) is never sent: each message is shown next to the field
+that produced it in the payload-contract panel, and nothing is silently
+coerced or defaulted.
+
 ## Output
 
 ```jsonc
@@ -86,21 +93,30 @@ of floating-point drift.
 
 ## Dashboard
 
-Light-mode purple operations console — sidebar navigation into six real
-sections, an executive summary, the ten-slot roster grid as the centrepiece,
-hourly load/fuel analytics, per-shop statistics and the engine's dark-hour
-explanations.
+Colorful operations console — dark-navy top navigation bar (no sidebar) with
+live section tabs, an executive summary of six color-coded cards (total shops ·
+powered shops · shops without power · generator usage · fuel consumption ·
+scheduling status), the ten-slot roster grid as the centrepiece, hourly
+load/fuel analytics, per-shop statistics and the engine's dark-hour
+explanations. Palette: dark navy, vibrant blue, teal and purple on soft cool
+backgrounds — green for powered/available, red for unpowered/unavailable,
+amber/orange for warnings, blue/purple for information.
 
 - Every figure comes from the submitted configuration or the live API response;
   nothing is mocked, and a response that does not match the contract (missing
   roster, unreadable body) is reported as an error instead of being rendered.
+- The payload-contract panel lists all six request fields with their expected
+  types and the shared validator's messages next to the offending field; the
+  Run action is blocked until the contract passes, so the optimizer never sees
+  a mistyped payload.
 - Dark cells are buttons: hover shows a tooltip, click/tap/keyboard opens a
   dialog with the engine's reason, `Escape` closes it, and the same text is
   repeated in the Dark Hours panel so nothing is hover-only.
 - Loading, success, invalid-input, infeasible, unproven-infeasible, server-error
   and network-error states are all reachable and all tested.
-- `@media print` drops the screen chrome and prints a white A4 page with the
-  roster, the metrics and the dark-hour reasons.
+- Responsive across desktop, tablet and mobile; `@media print` drops the screen
+  chrome and prints a white A4 page with the roster, the metrics and the
+  dark-hour reasons.
 
 ## Tech stack
 
@@ -122,12 +138,12 @@ npm test         # vitest run
 
 | Command | What it proves |
 | --- | --- |
-| `npx vitest run` | 153 tests over the solver, the independent reference oracle, the API route, validation, response building, dark reasons, analytics and the rendered dashboard. |
-| `npm run lint` | 41 files, 0 problems. |
+| `npx vitest run` | 161 tests over the solver, the independent reference oracle, the API route, validation (incl. the field-tagged pre-submit contract gate), response building, dark reasons, analytics and the rendered dashboard. |
+| `npm run lint` | ESLint 9 flat config, 0 problems. |
 | `npm run build` | Production build of `/`, `/api/roster`, `/api/health`. |
-| `node evidence/live_api_checks.mjs` | 35 live HTTP checks against a running server (boundaries, rejections, infeasible cases, 405 on the wrong method). |
+| `node evidence/live_api_checks.mjs` | 34 live HTTP checks against a running server (boundaries, rejections, infeasible cases, 405 on the wrong method). |
 | `node test_script.js` | Regenerates the fixtures in `evidence/`. |
-| `node evidence/solver_crosscheck.mjs 500` | 500 randomised seeds against the reference oracle: 238 mutually feasible, 0 status/value/audit mismatches, 5 fuel tie-break differences, slowest solve 8 ms. |
+| `node evidence/solver_crosscheck.mjs 500` | 500 randomised seeds against the reference oracle: 238 mutually feasible, 0 status/value/audit mismatches, 5 fuel tie-break differences, slowest solve 11 ms. |
 
 See `evidence/README.md` for the fixtures and `tests/helpers/reference.js` for
 the independent exhaustive oracle the solver is cross-checked against

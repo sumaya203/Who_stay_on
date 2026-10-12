@@ -8,6 +8,7 @@
  * per-hour fuel bars are guaranteed to agree with the engine's fuel model.
  */
 import { getFuelForLoad } from '@/lib/calculations.js';
+import { inspectRequest } from '@/lib/validation.js';
 
 export const SLOT_COUNT = 10;
 export const FIRST_HOUR = 10;
@@ -262,4 +263,69 @@ export function reasonTag(reason) {
   if (text.includes('0 value')) return { label: 'Low value', tone: 'mute' };
   if (text.includes('mandatory')) return { label: 'Mandatory', tone: 'volt' };
   return { label: 'Value trade-off', tone: 'mute' };
+}
+
+/* ------------------------------------------------------------- input contract
+   The dashboard submits exactly the payload the backend schema demands. This
+   table labels every top-level field with the type the API expects, and
+   `deriveContract` pairs each field with the shared validator's verdict so the
+   UI can show messages next to the field that produced them — before anything
+   is submitted. */
+
+export const INPUT_FIELDS = [
+  {
+    field: 'grid_available',
+    spec: 'boolean[10]',
+    hint: 'exactly 10 true/false values — one per hour, 10:00–19:00',
+  },
+  {
+    field: 'generator_capacity_kw',
+    spec: 'int > 0',
+    hint: 'generator capacity in kW, as a JSON number',
+  },
+  {
+    field: 'fuel_budget_litres',
+    spec: 'number ≥ 0',
+    hint: 'diesel budget in litres, at most 2 decimals',
+  },
+  {
+    field: 'max_consecutive_dark',
+    spec: 'int ≥ 0',
+    hint: 'longest allowed dark streak, in outage hours',
+  },
+  {
+    field: 'fuel_table',
+    spec: '[{ load_kw, litres_per_hour }]',
+    hint: 'non-empty, loads strictly increasing, top step at or above capacity',
+  },
+  {
+    field: 'shops',
+    spec: '[{ id, kw, type, value_per_slot[10] }]',
+    hint: 'at most 12 shops, unique ids, type "mandatory" or "normal"',
+  },
+];
+
+/**
+ * Per-field contract status for the configuration currently in the editor.
+ * `parse` is the editor parse result ({ ok, data | empty | error }); issues are
+ * taken from the SAME validator the API route uses, so the messages shown here
+ * are byte-for-byte the ones the API would return.
+ */
+export function deriveContract(parse) {
+  const parsed = parse?.ok ? parse.data : null;
+  const inspection = parsed ? inspectRequest(parsed) : null;
+  const byField = new Map();
+  for (const issue of inspection?.issues || []) {
+    if (!byField.has(issue.field)) byField.set(issue.field, []);
+    byField.get(issue.field).push(issue.message);
+  }
+  return {
+    state: !parse?.ok ? 'idle' : inspection.valid ? 'ok' : 'bad',
+    bodyIssues: byField.get('_body') || [],
+    fields: INPUT_FIELDS.map((f) => ({
+      ...f,
+      status: !parse?.ok ? 'idle' : byField.has(f.field) ? 'bad' : 'ok',
+      messages: byField.get(f.field) || [],
+    })),
+  };
 }
