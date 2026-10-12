@@ -6,8 +6,12 @@ An optimization engine and Next.js dashboard for scheduling generator load-shedd
 - **Exact Optimization Solver:** Implemented in pure JavaScript using Branch and Bound to globally maximize value across the entire day while respecting shared fuel budget and capacity constraints.
 - **Strict Input Validation:** Rejects missing fields, invalid formats, negative numbers, and logic inconsistencies.
 - **Detailed Dark Reasons:** Automatically generates accurate explanations for why a shop was not powered, grounded in the numerical data.
-- **Polished UI Dashboard:** Upload JSON, run optimization, and view results with per-hour statistics and shop-level drill-downs. 
-- **Print View:** Dedicated `@media print` layout for cleanly printing A4 summaries.
+- **Premium Operations Dashboard:** Sidebar rail + sticky header, executive summary cards, a ten-slot roster grid as the centrepiece, hourly load/fuel analytics, shop statistics and dark-hour explanations — all driven only by the submitted configuration and the live API response.
+- **Accessible Dark Reasons:** Every shed cell is hover-, tap- and keyboard-inspectable (popover with `aria-expanded`, Escape to dismiss) and is also written out in a persistent panel, so nothing depends on a tooltip.
+- **Print View:** Dedicated `@media print` layout that re-maps the dark theme onto a clean, high-contrast white A4 summary.
+
+## Design System
+`src/app/globals.css` holds the single token layer (`@theme` + `:root`) for colour, type scale, spacing, radii, shadow and motion; component classes (`card`, `btn`, `badge`, `dtable`, `rc*` cell states, `meter`, `popover`, …) live in `@layer components` so Tailwind utilities always win. `src/app/components/` contains presentation-only components plus `analytics.js`, which derives every chart and table figure from the API response and the input payload (it reuses the solver's own `getFuelForLoad`, so the per-hour fuel bars agree with the engine by construction; the UI flags when totals reconcile with `value_total`/`fuel_total_litres`).
 
 ## Tech Stack
 - Next.js (App Router), React, Tailwind CSS.
