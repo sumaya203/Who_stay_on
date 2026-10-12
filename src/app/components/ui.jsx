@@ -94,8 +94,7 @@ export function Spinner({ size = 14, className }) {
 /** Numeric readout with unit + optional meter used by the summary row. */
 export function StatCard({ label, value, unit, foot, icon: Icon, tone, meter, emphasis, className }) {
   return (
-    <article className={clsx('card stat-card card-raise', className)} data-tone={tone}>
-      <span className="stat-accent" aria-hidden="true" />
+    <article className={clsx('card stat-card', className)} data-tone={tone}>
       <div className="stat-top">
         <span className="stat-label">{label}</span>
         {Icon ? (

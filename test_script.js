@@ -1,55 +1,36 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import { validateRequest } from './src/lib/validation.js';
 import { solve } from './src/lib/solver.js';
 import { buildResponse } from './src/lib/responseBuilder.js';
 
-const sample = {
-  "grid_available": [true, false, false, true, false, false, true, true, false, true],
-  "generator_capacity_kw": 100,
-  "fuel_budget_litres": 50.0,
-  "max_consecutive_dark": 2,
-  "fuel_table": [
-    {"load_kw": 30, "litres_per_hour": 1.5},
-    {"load_kw": 70, "litres_per_hour": 3.2},
-    {"load_kw": 100, "litres_per_hour": 5.0}
-  ],
-  "shops": [
-    {
-      "id": "A_MANDATORY",
-      "kw": 20,
-      "type": "mandatory",
-      "value_per_slot": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
-    },
-    {
-      "id": "B_NORMAL",
-      "kw": 40,
-      "type": "normal",
-      "value_per_slot": [5, 15, 25, 5, 20, 10, 5, 5, 30, 5]
-    },
-    {
-      "id": "C_NORMAL",
-      "kw": 30,
-      "type": "normal",
-      "value_per_slot": [10, 5, 10, 15, 5, 25, 10, 10, 5, 10]
-    }
-  ]
-};
+/**
+ * Regenerates the evidence artifacts in `evidence/` straight from the engine.
+ * The sample scenario is read from `public/sample_input.json`, so this script
+ * can never drift from the configuration the dashboard loads.
+ *
+ *   node test_script.js
+ */
+const sample = JSON.parse(readFileSync('public/sample_input.json', 'utf8'));
 
-const v = validateRequest(sample);
-console.log("Valid?", v);
+const validation = validateRequest(sample);
+console.log('Valid?', validation);
 
-const s = solve(sample);
-console.log("Solve status:", s.status, "Optimal?", s.isOptimal);
-console.log("Value:", s.valueTotal, "Fuel:", s.fuelTotalHundredths / 100);
+const solved = solve(sample);
+console.log('Solve status:', solved.status, 'Optimal?', solved.isOptimal);
+console.log('Value:', solved.valueTotal, 'Fuel:', solved.fuelTotalHundredths / 100);
 
-const resp = buildResponse(sample, s);
-import fs from 'fs';
-fs.writeFileSync('evidence/sample_output.json', JSON.stringify(resp, null, 2));
-fs.writeFileSync('evidence/regression_input.json', JSON.stringify(sample, null, 2));
-fs.writeFileSync('evidence/regression_output.json', JSON.stringify(resp, null, 2));
-const boundarySample = JSON.parse(JSON.stringify(sample));
-boundarySample.fuel_budget_litres = 15.0; // tighter boundary
-const bs = solve(boundarySample);
-const bresp = buildResponse(boundarySample, bs);
-fs.writeFileSync('evidence/boundary_input.json', JSON.stringify(boundarySample, null, 2));
-fs.writeFileSync('evidence/boundary_output.json', JSON.stringify(bresp, null, 2));
-console.log("Evidence files written.");
+const response = buildResponse(sample, solved);
+writeFileSync('evidence/sample_output.json', JSON.stringify(response, null, 2));
+writeFileSync('evidence/regression_input.json', JSON.stringify(sample, null, 2));
+writeFileSync('evidence/regression_output.json', JSON.stringify(response, null, 2));
+
+// Same day, fuel budget cut to 15 L: the engine still finds a schedule, but it
+// has to shed normal shops and say why.
+const boundarySample = { ...sample, fuel_budget_litres: 15.0 };
+const boundarySolution = solve(boundarySample);
+const boundaryResponse = buildResponse(boundarySample, boundarySolution);
+console.log('Boundary status:', boundarySolution.status, 'Optimal?', boundarySolution.isOptimal);
+writeFileSync('evidence/boundary_input.json', JSON.stringify(boundarySample, null, 2));
+writeFileSync('evidence/boundary_output.json', JSON.stringify(boundaryResponse, null, 2));
+
+console.log('Evidence files written.');

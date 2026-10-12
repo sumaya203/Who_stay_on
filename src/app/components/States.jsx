@@ -22,8 +22,8 @@ import { fmtLitres, fmtNumber, fmtPct, slotLabel } from './analytics';
 /* ------------------------------------------------------------------ states */
 
 const STEPS = [
-  { id: 'parse', label: 'Parse & validate configuration', hint: 'strict schema check in the API route' },
-  { id: 'solve', label: 'Branch & bound schedule search', hint: '10 slots · shared fuel & capacity' },
+  { id: 'parse', label: 'Parse & validate configuration', hint: 'strict schema check' },
+  { id: 'solve', label: 'Search the ten-slot schedule', hint: 'capacity · fuel · dark limits' },
   { id: 'build', label: 'Build roster, totals & dark reasons', hint: 'response builder' },
 ];
 
@@ -34,17 +34,17 @@ function StatusRow({ state = 'pending', title, hint }) {
       <span
         className={clsx(
           'grid h-5 w-5 shrink-0 place-items-center rounded-full border',
-          state === 'done' && 'border-volt/40 bg-volt/12 text-volt',
-          state === 'active' && 'border-amber/45 bg-amber/12 text-amber',
-          state === 'failed' && 'border-rose/45 bg-rose/12 text-rose',
-          state === 'pending' && 'border-hairline bg-surface-3/60 text-ink-faint'
+          state === 'done' && 'border-volt/40 bg-volt/10 text-volt',
+          state === 'active' && 'border-amber/45 bg-amber/10 text-amber',
+          state === 'failed' && 'border-rose/45 bg-rose/10 text-rose',
+          state === 'pending' && 'border-hairline bg-surface-3 text-ink-faint'
         )}
         aria-hidden="true"
       >
         <Icon size={11} strokeWidth={2.4} />
       </span>
       <span className="min-w-0">
-        <span className="block text-[12px] font-medium leading-tight">{title}</span>
+        <span className="block text-[12px] font-medium leading-tight text-ink-muted">{title}</span>
         {hint ? <span className="block text-[10.5px] text-ink-faint">{hint}</span> : null}
       </span>
     </div>
@@ -63,7 +63,7 @@ export function OptimizerProgress({ summary }) {
             <p className="text-[14px] font-semibold tracking-tight text-ink">Optimizing…</p>
             <p className="text-[11.5px] text-ink-faint">
               {fmtNumber(summary?.shopCount)} shops · {fmtNumber(summary?.outageHours)} outage hours ·{' '}
-              {fmtNumber(summary?.capacityKw)} kW / {fmtLitres(summary?.fuelBudget)} L limits
+              {fmtNumber(summary?.capacityKw)} kW / {fmtLitres(summary?.fuelBudget)} L
             </p>
           </div>
         </div>
@@ -72,22 +72,16 @@ export function OptimizerProgress({ summary }) {
           <StatusRow state="active" title={STEPS[1].label} hint={STEPS[1].hint} />
           <StatusRow state="pending" title={STEPS[2].label} hint={STEPS[2].hint} />
         </div>
-        <p className="help-text">
-          Results render only when the solver answers — placeholders below carry no numbers.
-        </p>
       </div>
 
       <div aria-hidden="true" className="space-y-1.5">
         {Array.from({ length: 5 }).map((_, r) => (
           <div key={r} className="flex gap-1.5">
             {Array.from({ length: 10 }).map((__, c) => (
-              <span key={c} className="skeleton h-6 flex-1" style={{ opacity: 1 - (r * 10 + c) / 80 }} />
+              <span key={c} className="skeleton h-6 flex-1" />
             ))}
           </div>
         ))}
-        <p className="pt-1 text-[10.5px] text-ink-faint">
-          The engine keeps the best schedule found inside its 8.5 s search window.
-        </p>
       </div>
     </div>
   );
@@ -95,11 +89,18 @@ export function OptimizerProgress({ summary }) {
 
 export function ErrorState({ kind = 'invalid', message, lines }) {
   const network = kind === 'network';
+  const api = kind === 'api';
+  const title = network
+    ? 'The optimizer request failed'
+    : api
+      ? 'No schedule was produced'
+      : 'Invalid input — nothing was solved';
+
   return (
-    <Alert tone="rose" icon={network ? WifiOff : TriangleAlert} title={network ? 'The optimizer request failed' : 'Invalid input — nothing was solved'}>
+    <Alert tone="rose" icon={network ? WifiOff : TriangleAlert} title={title}>
       <p className="text-[12px]">{message}</p>
       {lines?.length ? (
-        <ol className="mono mt-2 space-y-1 rounded-[10px] border border-hairline bg-canvas/45 p-2.5 text-[11px] leading-relaxed">
+        <ol className="mono mt-2 space-y-1 rounded-[10px] border border-hairline bg-surface-2 p-2.5 text-[11px] leading-relaxed">
           {lines.map((line, i) => (
             <li key={i} className="flex gap-2">
               <span className="text-rose/75">{String(i + 1).padStart(2, '0')}</span>
@@ -114,15 +115,20 @@ export function ErrorState({ kind = 'invalid', message, lines }) {
 
 export function InfeasibleState({ result, model }) {
   const overCapacity = (model?.summary?.totalDemandKw || 0) > (model?.capacity ?? Infinity);
+  const unproven = result?.proven === false;
   return (
     <div className="card rise" data-tone="bad">
       <div className="card-head">
         <TriangleAlert size={15} strokeWidth={1.9} className="text-rose" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <h2 className="card-title">Proven Infeasible</h2>
-          <p className="card-sub">No schedule satisfies every hard constraint for this configuration</p>
+          <h2 className="card-title">{unproven ? 'No Feasible Schedule Found' : 'Infeasible'}</h2>
+          <p className="card-sub">
+            {unproven
+              ? 'The search window closed before infeasibility could be proven — no schedule was returned'
+              : 'No schedule satisfies every hard constraint for this configuration'}
+          </p>
         </div>
-        <Badge tone="rose">no roster produced</Badge>
+        <Badge tone={unproven ? 'amber' : 'rose'}>{unproven ? 'unproven' : 'proven'}</Badge>
       </div>
       <div className="card-body space-y-3.5">
         <p className="rounded-[10px] border border-rose/30 bg-rose/8 px-3 py-2.5 text-[12.5px] leading-relaxed text-ink">
@@ -144,8 +150,8 @@ export function InfeasibleState({ result, model }) {
           ]}
         />
         <p className="help-text">
-          Reported verbatim by <span className="mono">POST /api/roster</span>. Because the response carries an empty roster,
-          no schedule, totals or charts are rendered.
+          Reported verbatim by <span className="mono">POST /api/roster</span>. The response carries an empty roster, so no
+          schedule, totals or charts are rendered.
         </p>
       </div>
     </div>
@@ -155,13 +161,10 @@ export function InfeasibleState({ result, model }) {
 export function SuccessStrip({ model, lastRun, stale }) {
   const m = model.metrics;
   const facts = [
-    { icon: CircleCheck, label: `${fmtNumber(m.valueTotal)} value captured` },
-    { icon: Fuel, label: `${fmtLitres(m.fuelTotal)} L of ${fmtLitres(m.budget)} L budget` },
-    { icon: PlugZap, label: `${fmtNumber(m.outageHourCount)} outage hours scheduled` },
-    {
-      icon: ShieldCheck,
-      label: m.totalDarkHours ? `${fmtNumber(m.totalDarkHours)} dark hours explained` : 'no shop shed',
-    },
+    { icon: CircleCheck, label: `${fmtNumber(m.valueTotal)} value` },
+    { icon: Fuel, label: `${fmtLitres(m.fuelTotal)} L burned` },
+    { icon: PlugZap, label: `${fmtNumber(m.outageHourCount)} outage hours` },
+    { icon: ShieldCheck, label: m.totalDarkHours ? `${fmtNumber(m.totalDarkHours)} dark hours explained` : 'nothing shed' },
   ];
   return (
     <div className="card rise flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5" data-tone="ok">
@@ -235,8 +238,12 @@ export function RunPanel({ phase, run, result, onDownload, onPrint, model }) {
           { label: 'Submitted', value: run.at ?? '—', mono: true },
           { label: 'Round trip', value: run.ms === null ? '—' : `${run.ms} ms`, mono: true },
           { label: 'HTTP status', value: run.http === null ? '—' : run.http, mono: true },
-          { label: 'Response', value: result ? `${Object.keys(result.roster || {}).length} roster slots` : '—', mono: true },
-          { label: 'Shops / outage hrs', value: `${fmtNumber(model?.summary?.shopCount)} / ${fmtNumber(model?.summary?.outageHours)}`, mono: true },
+          { label: 'Roster slots', value: result ? Object.keys(result.roster || {}).length : '—', mono: true },
+          {
+            label: 'Shops / outage hrs',
+            value: `${fmtNumber(model?.summary?.shopCount)} / ${fmtNumber(model?.summary?.outageHours)}`,
+            mono: true,
+          },
           { label: 'Fuel table steps', value: fmtNumber(model?.fuelTable?.length), mono: true },
         ]}
       />
@@ -251,14 +258,14 @@ export function RunPanel({ phase, run, result, onDownload, onPrint, model }) {
       </div>
 
       <p className="help-text">
-        Download writes the raw <span className="mono">/api/roster</span> response to{' '}
-        <span className="mono text-ink-muted">roster_result.json</span>. Print opens the light A4 layout of this view.
+        Download writes the raw response to <span className="mono text-ink-muted">roster_result.json</span>. Print opens the
+        white A4 layout of this view.
       </p>
     </Panel>
   );
 }
 
-/* --------------------------------------------------- pre-run configuration */
+/* ---------------------------------------------------- pre-run configuration */
 
 export function InputPreview({ model, onLoadSample, onRun, canRun, running }) {
   const s = model?.summary || {};
@@ -279,7 +286,7 @@ export function InputPreview({ model, onLoadSample, onRun, canRun, running }) {
       subtitle="No schedule yet: this is the configuration on screen"
       icon={Grid3x3}
       bodyClass="space-y-3.5"
-      meta={<Badge tone="mute">awaiting optimizer run</Badge>}
+      meta={<Badge tone="mute">awaiting run</Badge>}
       footer={
         <>
           <span className="inline-flex items-center gap-1.5">
@@ -296,10 +303,8 @@ export function InputPreview({ model, onLoadSample, onRun, canRun, running }) {
             <div
               key={h.t}
               className={clsx(
-                'flex-1 rounded-[7px] border px-1 py-2 text-center transition-colors duration-150',
-                h.gridAvailable
-                  ? 'border-grid-on/25 bg-grid-on/10 text-grid-on'
-                  : 'border-amber/30 bg-amber/10 text-amber'
+                'flex-1 rounded-[7px] border px-1 py-2 text-center',
+                h.gridAvailable ? 'border-grid-on/25 bg-grid-on/10 text-grid-on' : 'border-amber/30 bg-amber/10 text-amber'
               )}
               title={`${h.range} — ${h.gridAvailable ? 'mains available' : 'outage: the generator decides who stays on'}`}
             >
@@ -335,8 +340,8 @@ export function InputPreview({ model, onLoadSample, onRun, canRun, running }) {
         </Alert>
       ) : (
         <p className="help-text">
-          {fmtPct(model?.capacity ? demand / model.capacity : null)} of capacity is requested by{' '}
-          {fmtNumber(s.shopCount)} shops — the solver still trades fuel against value hour by hour.
+          {fmtPct(model?.capacity ? demand / model.capacity : null)} of capacity is requested by {fmtNumber(s.shopCount)}{' '}
+          shops; the solver still trades fuel against value hour by hour.
         </p>
       )}
 
@@ -363,7 +368,7 @@ export function PendingSections({ note }) {
       id: 'analytics',
       icon: Fuel,
       title: 'Hourly Energy Analytics',
-      body: 'Load vs capacity per hour, diesel burn per outage hour, cumulative usage and remaining budget.',
+      body: 'Load vs capacity, diesel burn per outage hour, cumulative usage and remaining budget.',
     },
     {
       id: 'shop-stats',
@@ -375,17 +380,13 @@ export function PendingSections({ note }) {
       id: 'dark-reasons',
       icon: CircleAlert,
       title: 'Dark Hours & Reasons',
-      body: 'The engine’s own explanation for every shed hour, grouped by hour and shop.',
+      body: 'The engine\'s own explanation for every shed hour, grouped by hour and shop.',
     },
   ];
   return (
     <div className="grid gap-3 md:grid-cols-3">
       {tiles.map((tile) => (
-        <section
-          key={tile.id}
-          id={tile.id}
-          className="card card-raise section-anchor rise flex flex-col gap-2 p-3.5 no-print"
-        >
+        <section key={tile.id} id={tile.id} className="card section-anchor flex flex-col gap-2 p-3.5 no-print">
           <span className="stat-icon" aria-hidden="true">
             <tile.icon size={14} strokeWidth={1.9} />
           </span>

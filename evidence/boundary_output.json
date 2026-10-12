@@ -8,11 +8,11 @@
       "dark": [
         {
           "id": "B_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.70 L more, and only 0.70 L is unspent."
         },
         {
           "id": "C_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.70 L more, and only 0.70 L is unspent."
         }
       ]
     },
@@ -24,7 +24,7 @@
       "dark": [
         {
           "id": "C_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.80 L more, and only 0.70 L is unspent."
         }
       ]
     },
@@ -36,7 +36,7 @@
       "dark": [
         {
           "id": "C_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.80 L more, and only 0.70 L is unspent."
         }
       ]
     },
@@ -48,7 +48,7 @@
       "dark": [
         {
           "id": "B_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.80 L more, and only 0.70 L is unspent."
         }
       ]
     },
@@ -60,7 +60,7 @@
       "dark": [
         {
           "id": "C_NORMAL",
-          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+          "reason": "The day's diesel budget is the binding constraint: powering it here needs 1.80 L more, and only 0.70 L is unspent."
         }
       ]
     }
