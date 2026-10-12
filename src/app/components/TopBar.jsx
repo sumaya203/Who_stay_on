@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Play, X } from 'lucide-react';
+import { Play, Zap } from 'lucide-react';
 import { Badge, Spinner, StatusDot } from './ui';
 
 /**
@@ -9,8 +9,6 @@ import { Badge, Spinner, StatusDot } from './ui';
  * wired to the page's existing submit handler.
  */
 export default function TopBar({
-  drawerOpen,
-  onToggleDrawer,
   solver,
   lastRun,
   status,
@@ -21,17 +19,7 @@ export default function TopBar({
 }) {
   return (
     <header className="topbar no-print">
-      <button
-        type="button"
-        className="icon-btn lg:hidden"
-        onClick={onToggleDrawer}
-        aria-expanded={drawerOpen}
-        aria-controls="app-sidebar"
-        aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-      >
-        {drawerOpen ? <X size={16} /> : <Menu size={16} />}
-      </button>
-
+      <div className="topbar-brand" aria-hidden="true"><Zap size={21} fill="currentColor" /></div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink sm:text-[18px]">
@@ -42,7 +30,7 @@ export default function TopBar({
           {stale && status === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
         </div>
         <p className="mt-0.5 hidden truncate text-[11.5px] text-ink-muted sm:block">
-          10:00–19:00 · shared genset, shared diesel budget
+          WHO STAYS ON? · ENERGY OPTIMIZATION STUDIO
         </p>
       </div>
 

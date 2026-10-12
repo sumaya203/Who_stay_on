@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import SummaryCards from './components/SummaryCards';
 import ConfigPanel from './components/ConfigPanel';
@@ -21,7 +20,7 @@ import {
 } from './components/States';
 import { Panel, Badge } from './components/ui';
 import { buildModel, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
-import { scrollToSection, SECTION_IDS, useActiveSection } from './components/nav';
+import { scrollToSection, SECTION_IDS, useActiveSection, NAV_GROUPS } from './components/nav';
 
 const APP_VERSION = '1.0.0';
 
@@ -96,8 +95,6 @@ export default function Page() {
   const [run, setRun] = useState(EMPTY_RUN);
   const [submitted, setSubmitted] = useState(null);
   const [submittedRaw, setSubmittedRaw] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(null); // null = viewport not measured yet
   const [engine, setEngine] = useState('checking');
 
   const activeId = useActiveSection(SECTION_IDS);
@@ -294,33 +291,7 @@ export default function Page() {
   );
 
   const onNavigate = useCallback((id) => {
-    setDrawerOpen(false);
     scrollToSection(id);
-  }, []);
-
-  /* ------------------------------------------------------ drawer mechanics */
-
-  useEffect(() => {
-    if (!drawerOpen) return undefined;
-    const onKey = (event) => {
-      if (event.key === 'Escape') setDrawerOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [drawerOpen]);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return undefined;
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const sync = () => {
-      setIsDesktop(mq.matches);
-      if (mq.matches) setDrawerOpen(false);
-    };
-    sync();
-    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', sync);
-    return () => {
-      if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', sync);
-    };
   }, []);
 
   /* ------------------------------------- real solver health from /api/health */
@@ -346,10 +317,6 @@ export default function Page() {
   }, []);
 
   const canRun = Boolean(jsonInput.trim()) && !loading;
-  // `data-open` drives the drawer transform; interactivity additionally stays
-  // on for the desktop rail and while the viewport is still unknown (SSR).
-  const drawerShown = isDesktop === true || drawerOpen;
-  const sidebarReachable = isDesktop !== false || drawerOpen;
   const lastRun = run.at ? { at: run.at, ms: run.ms } : null;
 
   const resultsArea = () => {
@@ -425,31 +392,8 @@ export default function Page() {
   return (
     <div className="app-shell">
       <div className="app-body">
-        <aside
-          id="app-sidebar"
-          className="sidebar no-print"
-          data-open={drawerShown ? 'true' : 'false'}
-          aria-label="Primary"
-          aria-hidden={sidebarReachable ? undefined : 'true'}
-          inert={!sidebarReachable}
-        >
-          <Sidebar activeId={activeId} chips={chips} solver={solver} onNavigate={onNavigate} version={APP_VERSION} />
-        </aside>
-
-        {drawerOpen ? (
-          <button
-            type="button"
-            className="sidebar-backdrop no-print"
-            aria-label="Close navigation"
-            onClick={() => setDrawerOpen(false)}
-            tabIndex={-1}
-          />
-        ) : null}
-
         <div className="main-col">
           <TopBar
-            drawerOpen={drawerOpen}
-            onToggleDrawer={() => setDrawerOpen((v) => !v)}
             solver={solver}
             lastRun={lastRun}
             status={result?.status}
@@ -459,7 +403,17 @@ export default function Page() {
             canRun={canRun}
           />
 
+          <nav className="horizontal-nav no-print" aria-label="Dashboard sections">
+            {NAV_GROUPS.flatMap((group) => group.items).map((item) => {
+              const Icon = item.icon;
+              return <a key={item.id} href={`#${item.id}`} className="horizontal-link" data-active={activeId === item.id ? 'true' : 'false'} aria-current={activeId === item.id ? 'true' : undefined} onClick={(event) => { event.preventDefault(); onNavigate(item.id); }}><Icon size={15} aria-hidden="true" /><span>{item.label}</span>{chips[item.id] ? <small>{chips[item.id]}</small> : null}</a>;
+            })}
+          </nav>
           <main className="content">
+            <div className="dashboard-hero no-print">
+              <div className="hero-copy"><span className="hero-eyebrow"><span className="hero-spark" /> INTELLIGENT ENERGY PLANNING</span><h2>Make every watt <em>count.</em></h2><p>Plan smarter through every outage. Optimize your generator schedule, protect your priorities, and see the whole picture at a glance.</p><div className="hero-meta"><span>✦ Exact optimization</span><span>✦ Live energy insights</span><span>✦ Built for resilience</span></div></div>
+              <div className="hero-orbit" aria-hidden="true"><div className="orbit-ring orbit-ring-one" /><div className="orbit-ring orbit-ring-two" /><div className="orbit-core">⚡</div><span className="orbit-label orbit-label-a">POWER</span><span className="orbit-label orbit-label-b">OPTIMIZED</span></div>
+            </div>
             {/* printed letterhead — screen-hidden */}
             <div className="print-only mb-2">
               <div className="flex items-baseline justify-between gap-4 border-b border-hairline pb-2">
