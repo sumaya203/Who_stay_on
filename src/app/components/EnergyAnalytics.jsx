@@ -26,7 +26,7 @@ function LoadChart({ model }) {
         <div className="relative flex items-end gap-1 sm:gap-1.5" style={{ height: CHART_H + 20 }}>
           {/* capacity rail */}
           <div className="pointer-events-none absolute inset-x-0 top-0" style={{ height: CHART_H }}>
-            <div className="h-full w-full rounded-lg border border-hairline bg-canvas/45" />
+            <div className="h-full w-full rounded-lg border border-hairline bg-surface-2" />
             <span className="absolute right-0 -top-2 rounded bg-surface-3/90 px-1 text-[9px] font-semibold text-ink-faint">
               cap {fmtNumber(capacity)} kW
             </span>
@@ -36,7 +36,7 @@ function LoadChart({ model }) {
                 style={{ bottom: `${Math.min(100, metrics.avgLoadPct * 100)}%` }}
                 title={`Average genset load across ${metrics.outageHourCount} outage hours`}
               >
-                <span className="absolute -top-2 right-0 rounded bg-surface-3/90 px-1 text-[9px] font-semibold text-volt/80">
+                <span className="absolute -top-2 right-0 rounded bg-surface-3 px-1 text-[9px] font-semibold text-volt">
                   avg {fmtPct(metrics.avgLoadPct)}
                 </span>
               </div>
@@ -92,7 +92,7 @@ function LoadChart({ model }) {
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-hairline pt-2.5">
           <span className="legend-item">
-            <span className="h-3 w-3 rounded-[3px] bg-gradient-to-b from-volt to-volt-deep" aria-hidden="true" />
+            <span className="h-3 w-3 rounded-[3px] bg-volt" aria-hidden="true" />
             Genset load (share of capacity)
           </span>
           <span className="legend-item">
@@ -144,7 +144,7 @@ function BudgetGauge({ model }) {
             <path
               d="M 12 66 A 52 52 0 0 1 116 66"
               fill="none"
-              stroke="color-mix(in oklab, var(--color-surface-3) 100%, transparent)"
+              stroke="var(--color-surface-3)"
               strokeWidth="9"
               strokeLinecap="round"
             />

@@ -24,6 +24,7 @@ export default function ConfigPanel({
   summary,
   apiErrors,
   serverNote,
+  uploadError,
   stale,
 }) {
   const inputRef = useRef(null);
@@ -62,7 +63,7 @@ export default function ConfigPanel({
     <Panel
       id="configuration"
       title="Input Configuration"
-      subtitle="POSTed unchanged to /api/roster"
+      subtitle="posted unchanged to /api/roster"
       icon={FileJson}
       bodyClass="space-y-3.5"
       meta={
@@ -102,7 +103,7 @@ export default function ConfigPanel({
           <span className="min-w-0 flex-1">
             <span className="block text-[12.5px] font-semibold text-ink">Upload configuration</span>
             <span className="block text-[11px] text-ink-faint">
-              Drop a <span className="mono">.json</span> file here or click to browse
+              Drop a <span className="mono">.json</span> file or browse
             </span>
           </span>
           <input
@@ -162,7 +163,7 @@ export default function ConfigPanel({
             <>
               <span className="inline-flex items-center gap-1.5 text-ok">
                 <CircleCheck size={12} strokeWidth={2.2} aria-hidden="true" />
-                Parses cleanly
+                Parses
               </span>
               <span className="num">{summary.shopCount} shops</span>
               <span className="num">{summary.outageHours} outage hrs</span>
@@ -182,8 +183,14 @@ export default function ConfigPanel({
         </div>
       </div>
 
+      {uploadError ? (
+        <Alert tone="amber" icon={CircleAlert} title="Upload failed">
+          {uploadError}
+        </Alert>
+      ) : null}
+
       {apiErrors ? (
-        <Alert tone="rose" icon={CircleAlert} title="The API rejected this configuration">
+        <Alert tone="rose" icon={CircleAlert} title="The optimizer returned an error">
           <ul className="space-y-0.5">
             {apiErrors.map((line, i) => (
               <li key={i} className="mono text-[11.5px] leading-relaxed">
@@ -202,7 +209,7 @@ export default function ConfigPanel({
 
       <div className="flex flex-col-reverse items-stretch gap-2.5 border-t border-hairline pt-3.5 sm:flex-row sm:items-center sm:justify-between">
         <p className="help-text max-w-sm sm:order-first">
-          Validation is enforced server-side; the dashboard never edits your numbers.
+          Validation runs in the API route; the dashboard never edits your numbers.
         </p>
         <button type="button" className="btn btn-primary btn-lg" onClick={onRun} disabled={!canRun}>
           {running ? <Spinner size={15} /> : <Play size={15} strokeWidth={2.2} aria-hidden="true" />}

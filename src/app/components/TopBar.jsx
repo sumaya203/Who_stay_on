@@ -35,20 +35,20 @@ export default function TopBar({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink sm:text-[18px]">
-            Generator Operations Dashboard
+            Generator Schedule
           </h1>
           {status === 'ok' ? <Badge tone="volt">Scheduled</Badge> : null}
           {status === 'infeasible' ? <Badge tone="amber">Infeasible</Badge> : null}
           {stale && status === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
         </div>
         <p className="mt-0.5 hidden truncate text-[11.5px] text-ink-muted sm:block">
-          Hourly load-shedding schedule · 10:00–19:00 · shared genset, shared diesel budget
+          10:00–19:00 · shared genset, shared diesel budget
         </p>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-2.5">
         <div
-          className="hidden items-center gap-2 rounded-[10px] border border-hairline bg-surface-2/70 px-2.5 py-1.5 md:flex"
+          className="hidden items-center gap-2 rounded-[10px] border border-hairline bg-surface-2 px-2.5 py-1.5 md:flex"
           title="Solver engine status"
         >
           <StatusDot state={solver.tone} pulse={solver.busy} />

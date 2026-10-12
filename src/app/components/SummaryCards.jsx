@@ -36,12 +36,12 @@ export default function SummaryCards({ model, phase, errorCount }) {
 
   const statusTone = solved ? 'ok' : infeasible || invalid ? 'bad' : running ? 'warn' : undefined;
   const statusFoot = solved
-    ? `Capacity, fuel and dark-streak limits all respected across ${m.outageHourCount} outage hr${m.outageHourCount === 1 ? '' : 's'}.`
+    ? `Limits respected across ${m.outageHourCount} outage hr${m.outageHourCount === 1 ? '' : 's'}.`
     : infeasible
-      ? 'No schedule satisfies every hard constraint for this configuration.'
+      ? 'No schedule satisfies every hard constraint.'
       : invalid
-        ? `${errorCount ?? 0} validation issue${errorCount === 1 ? '' : 's'} returned by the API.`
-        : 'Load a configuration and run the optimizer to populate this view.';
+        ? `${errorCount ?? 0} issue${errorCount === 1 ? '' : 's'} returned by the API.`
+        : 'Run the optimizer to populate this view.';
 
   return (
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -54,19 +54,17 @@ export default function SummaryCards({ model, phase, errorCount }) {
       />
 
       <StatCard
-        label="Total value generated"
+        label="Value captured"
         icon={TrendingUp}
         tone={solved ? 'ok' : undefined}
         value={solved ? fmtNumber(m.valueTotal) : null}
         foot={
           solved ? (
             <span>
-              <span className="num text-ink-muted">{fmtNumber(m.valueSum)}</span> booked across{' '}
-              <span className="num">{m.outageHourCount}</span> outage hrs ·{' '}
-              <span className="num">{fmtNumber(m.potentialValueTotal)}</span> unconstrained ceiling
+              booked on generator hours · <span className="num">{fmtNumber(m.potentialValueTotal)}</span> was on offer
             </span>
           ) : (
-            'Value realised during generator hours only.'
+            'Value booked on generator hours only.'
           )
         }
       />
@@ -81,8 +79,7 @@ export default function SummaryCards({ model, phase, errorCount }) {
         foot={
           solved ? (
             <span>
-              <span className="num">{fmtPct(m.budgetUsedPct, 1)}</span> of the{' '}
-              <span className="num">{fmtLitres(m.budget)}</span> L budget
+              <span className="num">{fmtPct(m.budgetUsedPct, 1)}</span> of <span className="num">{fmtLitres(m.budget)}</span> L
               {pf ? (
                 <>
                   {' '}· peak <span className="num">{fmtLitres(pf.v)}</span> L at {pf.label}
@@ -90,7 +87,7 @@ export default function SummaryCards({ model, phase, errorCount }) {
               ) : null}
             </span>
           ) : (
-            'Diesel burned by the scheduled load, per the input fuel table.'
+            'Step-table burn for the scheduled load.'
           )
         }
       />
@@ -100,13 +97,14 @@ export default function SummaryCards({ model, phase, errorCount }) {
         icon={BatteryCharging}
         value={solved ? fmtLitres(m.fuelRemaining) : summary.fuelBudget !== undefined ? fmtLitres(summary.fuelBudget) : null}
         unit="L"
-        meter={solved ? (m.budget > 0 ? (m.budget - m.fuelRemaining) / m.budget : null) : null}
+        // the meter tracks the value shown: the share of the budget still unspent
+        meter={solved && m.budget > 0 ? m.fuelRemaining / m.budget : null}
         foot={
           solved
             ? `${fmtLitres(m.budget)} L budgeted − ${fmtLitres(m.fuelTotal)} L used${
-                m.fuelRemaining === 0 ? ' · budget fully committed' : ''
+                m.fuelRemaining === 0 ? ' · fully committed' : ''
               }`
-            : `Declared in the configuration as ${fmtLitres(summary.fuelBudget)} L.`
+            : `Configured as ${fmtLitres(summary.fuelBudget)} L.`
         }
       />
 
@@ -119,12 +117,12 @@ export default function SummaryCards({ model, phase, errorCount }) {
         foot={
           solved ? (
             <span>
-              peak <span className="num">{fmtNumber(m.peakLoadKw)}</span> kW ({fmtPct(m.peakLoadPct)}) at{' '}
-              {m.peakLoadHour} · avg load <span className="num">{fmtPct(m.avgLoadPct)}</span>
+              peak <span className="num">{fmtNumber(m.peakLoadKw)}</span> kW ({fmtPct(m.peakLoadPct)}) at {m.peakLoadHour} · avg{' '}
+              <span className="num">{fmtPct(m.avgLoadPct)}</span>
             </span>
           ) : (
             <span>
-              Combined shop demand is <span className="num">{fmtNumber(summary.totalDemandKw)}</span> kW.
+              Combined shop demand <span className="num">{fmtNumber(summary.totalDemandKw)}</span> kW.
             </span>
           )
         }

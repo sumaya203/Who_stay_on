@@ -89,7 +89,7 @@ export default function DarkReasons({ model, onNavigate }) {
       {[...byHour.entries()].map(([t, list]) => {
         const hour = model.outageHours.find((h) => h.t === t);
         return (
-          <div key={t} className="rounded-[11px] border border-hairline bg-canvas/35 p-2.5">
+          <div key={t} className="rounded-[11px] border border-hairline bg-surface-2 p-2.5">
             <div className="mb-2 flex flex-wrap items-center gap-2 px-0.5">
               <span className="hour-badge" title={hour.range}>
                 <span>{hour.label}</span>

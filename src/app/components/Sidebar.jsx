@@ -58,7 +58,7 @@ export default function Sidebar({ activeId, chips, solver, onNavigate, version }
       </div>
 
       <div className="mt-auto space-y-2">
-        <div className="rounded-[11px] border border-hairline bg-canvas/50 p-3">
+        <div className="rounded-[11px] border border-hairline bg-surface-2 p-3">
           <p className="nav-group-label" style={{ padding: 0, margin: '0 0 8px' }}>
             Solver engine
           </p>
@@ -71,8 +71,6 @@ export default function Sidebar({ activeId, chips, solver, onNavigate, version }
 
         <p className="mono px-1 text-[10px] leading-relaxed text-ink-faint">
           v{version} · branch &amp; bound
-          <br />
-          exact for N ≤ 12 shops
         </p>
       </div>
     </nav>

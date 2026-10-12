@@ -19,14 +19,15 @@ import {
   SuccessStrip,
   ErrorState,
 } from './components/States';
-import { Panel, Badge, clsx } from './components/ui';
+import { Panel, Badge } from './components/ui';
 import { buildModel, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
 import { scrollToSection, SECTION_IDS, useActiveSection } from './components/nav';
 
 const APP_VERSION = '1.0.0';
 
-/* The same demo scenario the dashboard shipped with (mirrors public/sample_input.json). */
-const SAMPLE_CONFIG = {
+/* Fallback copy of public/sample_input.json, used only if the static file
+   cannot be fetched (e.g. opened without the Next.js server). */
+const SAMPLE_FALLBACK = {
   grid_available: [true, false, false, true, false, false, true, true, false, true],
   generator_capacity_kw: 100,
   fuel_budget_litres: 50.0,
@@ -58,18 +59,40 @@ const SAMPLE_CONFIG = {
   ],
 };
 
+const REQUEST_TIMEOUT_MS = 30000;
 const EMPTY_RUN = { at: null, ms: null, http: null, bytes: 0 };
 const clock = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+/**
+ * Guards against a backend that answers with something the dashboard cannot
+ * read — a wrong shape must surface as an error, never as a rendered result.
+ */
+function describeShapeProblem(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return 'The server did not return a JSON object.';
+  }
+  if (data.status === 'ok' && (!data.roster || typeof data.roster !== 'object')) {
+    return 'The response is missing its roster.';
+  }
+  if (data.status === 'infeasible' && typeof data.reason !== 'string') {
+    return 'The infeasible response carries no reason.';
+  }
+  if (data.status !== 'ok' && data.status !== 'infeasible') {
+    return `Unexpected response status "${String(data.status)}".`;
+  }
+  return null;
+}
 
 export default function Page() {
   const [jsonInput, setJsonInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
-  // presentation-only additions: failure kind, run metadata and the exact
-  // payload the rendered result belongs to (so editing the textarea never
-  // re-labels an older run with newer numbers).
+  // presentation-only additions: failure kind, upload feedback, run metadata and
+  // the exact payload the rendered result belongs to (so editing the textarea
+  // never re-labels an older run with newer numbers).
   const [errorKind, setErrorKind] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   const [run, setRun] = useState(EMPTY_RUN);
   const [submitted, setSubmitted] = useState(null);
   const [submittedRaw, setSubmittedRaw] = useState('');
@@ -86,31 +109,46 @@ export default function Page() {
   }, []);
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
+    setUploadError(null);
     const reader = new FileReader();
     reader.onload = (evt) => {
       setInputText(evt.target.result);
+      setUploadError(null);
+    };
+    reader.onerror = () => {
+      setUploadError(`Could not read ${file.name}. Try again, or paste the JSON instead.`);
     };
     reader.readAsText(file);
   };
 
-  const handleLoadSample = () => {
-    // Generate a basic valid sample for demonstration
-    setJsonInput(JSON.stringify(SAMPLE_CONFIG, null, 2));
-  };
+  const handleLoadSample = useCallback(async () => {
+    setUploadError(null);
+    try {
+      const res = await fetch('/sample_input.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      JSON.parse(text); // trust the file only if it parses
+      setInputText(text);
+    } catch {
+      setInputText(JSON.stringify(SAMPLE_FALLBACK, null, 2));
+    }
+  }, [setInputText]);
 
   const handleClear = () => {
     setJsonInput('');
     setResult(null);
     setError(null);
     setErrorKind(null);
+    setUploadError(null);
     setSubmitted(null);
     setSubmittedRaw('');
     setRun(EMPTY_RUN);
   };
 
   const handleSubmit = async () => {
+    if (loading) return;
     setLoading(true);
     setError(null);
     setErrorKind(null);
@@ -128,47 +166,71 @@ export default function Page() {
 
     const payload = JSON.stringify(parsed);
     const startedAt = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const res = await fetch('/api/roster', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payload,
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      const rawBody = await res.text();
+      let data = null;
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = null;
+      }
+
       setRun({ at: clock(), ms: Date.now() - startedAt, http: res.status, bytes: new Blob([payload]).size });
-      setSubmitted(parsed);
-      setSubmittedRaw(jsonInput);
 
       if (!res.ok) {
-        setError(data.errors ? data.errors.join("\n") : "An error occurred.");
+        const messages = Array.isArray(data?.errors) && data.errors.length
+          ? data.errors
+          : [`Request failed with HTTP ${res.status}.`];
+        setError(messages.join('\n'));
         setErrorKind('api');
       } else {
-        setResult(data);
+        const shapeProblem = describeShapeProblem(data);
+        if (shapeProblem) {
+          setError(shapeProblem);
+          setErrorKind('api');
+        } else {
+          setSubmitted(parsed);
+          setSubmittedRaw(jsonInput);
+          setResult(data);
+        }
       }
     } catch (err) {
       setRun({ at: clock(), ms: Date.now() - startedAt, http: null, bytes: new Blob([payload]).size });
-      setError("Network error communicating with the API.");
-      setErrorKind('network');
+      if (err?.name === 'AbortError') {
+        setError(`The optimizer did not answer within ${REQUEST_TIMEOUT_MS / 1000} s. Check the server and run again.`);
+        setErrorKind('api');
+      } else {
+        setError('Network error communicating with the API.');
+        setErrorKind('network');
+      }
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDownload = () => {
     if (!result) return;
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
-    a.download = "roster_result.json";
+    a.download = 'roster_result.json';
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   /* ---------------------------------------------------- derived view model */
 
@@ -200,35 +262,32 @@ export default function Page() {
       return {
         tone: 'warn',
         busy: true,
-        label: 'Solving…',
-        detail: `Branch & bound across ${fmtNumber(model.outageHours.length)} outage hours`,
+        label: 'Solving',
+        detail: `${fmtNumber(model.outageHours.length)} outage hours · branch & bound`,
       };
     }
-    if (engine === 'checking') return { tone: 'idle', busy: false, label: 'Checking engine', detail: 'Reading /api/health' };
+    if (engine === 'checking') return { tone: 'idle', busy: false, label: 'Checking engine', detail: 'GET /api/health' };
     if (engine === 'offline') {
-      return { tone: 'bad', busy: false, label: 'Engine offline', detail: 'This session could not reach /api/health.' };
+      return { tone: 'bad', busy: false, label: 'Engine offline', detail: '/api/health did not answer.' };
     }
-    if (errorKind) {
-      return { tone: 'bad', busy: false, label: 'Engine ready', detail: 'Last request was rejected before a schedule was produced.' };
+    if (errorKind === 'api') {
+      return { tone: 'bad', busy: false, label: 'Engine ready', detail: 'The last payload was rejected.' };
     }
     return {
       tone: 'live',
       busy: false,
       label: 'Engine ready',
-      detail:
-        run.ms !== null
-          ? `Last response in ${run.ms} ms · exact for up to 12 shops`
-          : 'Exact branch & bound · ≤ 12 shops, 10 slots',
+      detail: run.ms !== null ? `Last response in ${run.ms} ms` : 'Exact search · ≤ 12 shops, 10 slots',
     };
   }, [loading, engine, errorKind, run.ms, model.outageHours.length]);
 
   const chips = useMemo(
     () => ({
-      overview: phase === 'ok' ? `${fmtNumber(result?.value_total ?? 0)} val` : null,
+      overview: phase === 'ok' ? `value ${fmtNumber(result?.value_total ?? 0)}` : null,
       roster: result?.status === 'ok' ? `${Object.keys(result.roster || {}).length} slots` : null,
-      'dark-reasons': result?.status === 'ok' ? `${resultModel.metrics.totalDarkHours ?? 0}` : null,
+      'dark-reasons': result?.status === 'ok' ? `${resultModel.metrics.totalDarkHours ?? 0} shed` : null,
       analytics: result?.status === 'ok' ? `${resultModel.hours.length} hrs` : null,
-      'shop-stats': inputModel.summary?.shopCount ? `${inputModel.summary.shopCount}` : null,
+      'shop-stats': inputModel.summary?.shopCount ? `${inputModel.summary.shopCount} shops` : null,
       configuration: jsonInput.trim() ? (parse.ok ? 'ready' : 'fix') : null,
     }),
     [phase, result, resultModel, inputModel, jsonInput, parse.ok]
@@ -326,16 +385,6 @@ export default function Page() {
         </>
       );
     }
-    if (errorKind === 'parse' || errorKind === 'network') {
-      return (
-        <div className="no-print space-y-3">
-          <Panel id="roster" title="No Results" subtitle="Nothing was solved">
-            <ErrorState kind={errorKind} message={error} lines={apiLines} />
-          </Panel>
-          <PendingSections note="nothing to show" />
-        </div>
-      );
-    }
     if (parse.ok) {
       return (
         <div className="no-print space-y-3">
@@ -346,7 +395,22 @@ export default function Page() {
             canRun={canRun}
             running={loading}
           />
+          {errorKind ? (
+            <Panel id="status" title="Last Request" subtitle="The optimizer did not return a schedule">
+              <ErrorState kind={errorKind} message={error} lines={apiLines} />
+            </Panel>
+          ) : null}
           <PendingSections note={phase === 'running' ? 'solving' : 'awaiting run'} />
+        </div>
+      );
+    }
+    if (errorKind === 'parse' || errorKind === 'network' || errorKind === 'api') {
+      return (
+        <div className="no-print space-y-3">
+          <Panel id="roster" title="Generator Roster" subtitle="Nothing was solved">
+            <ErrorState kind={errorKind} message={error} lines={apiLines} />
+          </Panel>
+          <PendingSections note="nothing to show" />
         </div>
       );
     }
@@ -401,13 +465,13 @@ export default function Page() {
               <div className="flex items-baseline justify-between gap-4 border-b border-hairline pb-2">
                 <div className="min-w-0">
                   <h1 className="text-[16px] font-bold tracking-tight text-ink">Who Stays On? — Generator Schedule</h1>
-                  <p className="text-[10.5px] text-ink-muted">
+                  <p className="text-[10.5px] text-ink-faint">
                     {fmtNumber(resultModel.summary?.shopCount)} shops · {fmtNumber(resultModel.summary?.outageHours)} outage
                     hours · {fmtNumber(resultModel.capacity)} kW capacity · {fmtLitres(resultModel.summary?.fuelBudget)} L
                     budget · value {fmtNumber(result?.value_total)} · fuel {fmtLitres(result?.fuel_total_litres)} L
                   </p>
                 </div>
-                <p className="text-right text-[9.5px] leading-tight text-ink-faint">
+                <p className="text-right text-[9.5px] leading-tight text-ink-muted">
                   {run.at ? `Run ${run.at}` : 'No run recorded'}
                   <br />
                   v{APP_VERSION} · 10:00–19:00
@@ -417,17 +481,12 @@ export default function Page() {
 
             <section id="overview" className="section-anchor space-y-2.5">
               <div className="flex flex-wrap items-center gap-2 px-0.5">
-                <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Executive Summary</h2>
-                <span className="hidden text-[11.5px] text-ink-faint sm:inline">
-                  {phase === 'ok'
-                    ? 'Totals straight from the latest /api/roster response'
-                    : phase === 'running'
-                      ? 'Waiting on the solver'
-                      : 'Configuration facts — run the optimizer for results'}
-                </span>
+                <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Summary</h2>
                 {stale && phase === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
                 <Badge tone="mute" className="ml-auto">
-                  {model.hours.length} slots · {fmtNumber(model.summary?.shopCount)} shops
+                  {model.hours.length
+                    ? `${model.hours.length} slots · ${fmtNumber(model.summary?.shopCount)} shops`
+                    : 'No configuration loaded'}
                 </Badge>
               </div>
               <SummaryCards model={model} phase={phase} errorCount={apiLines.length} />
@@ -435,8 +494,8 @@ export default function Page() {
 
             {phase === 'ok' ? <SuccessStrip model={resultModel} lastRun={lastRun} stale={stale} /> : null}
 
-            <div className="grid items-start gap-3 xl:grid-cols-12">
-              <div className="no-print min-w-0 xl:col-span-7">
+            <div className="no-print grid items-start gap-3 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-7">
                 <ConfigPanel
                   jsonInput={jsonInput}
                   onChange={setInputText}
@@ -449,10 +508,11 @@ export default function Page() {
                   summary={inputModel.summary || {}}
                   apiErrors={errorKind === 'api' ? apiLines : null}
                   serverNote={errorKind === 'network' ? error : null}
+                  uploadError={uploadError}
                   stale={stale}
                 />
               </div>
-              <div className="no-print min-w-0 xl:col-span-5">
+              <div className="min-w-0 xl:col-span-5">
                 <RunPanel
                   phase={phase}
                   run={run}
@@ -468,11 +528,10 @@ export default function Page() {
 
             <footer className="no-print mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-hairline pt-3 text-[10.5px] text-ink-faint">
               <span className="mono">Who Stays On? · v{APP_VERSION}</span>
-              <span className="hidden h-1 w-1 rounded-full bg-ink-faint sm:block" aria-hidden="true" />
               <span>Exact branch &amp; bound · step-wise fuel table · integer hundredths arithmetic</span>
-              <span className={clsx('ml-auto inline-flex items-center gap-1.5')}>
+              <span className="ml-auto inline-flex items-center gap-1.5">
                 <span
-                  className={clsx('dot', engine === 'online' ? 'dot-live' : engine === 'offline' ? 'dot-bad' : 'dot-idle')}
+                  className={engine === 'online' ? 'dot dot-live' : engine === 'offline' ? 'dot dot-bad' : 'dot dot-idle'}
                   aria-hidden="true"
                 />
                 /api/health {engine}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, X, Table2, Info, MousePointerClick } from 'lucide-react';
+import { Check, X, Table2, Info } from 'lucide-react';
 import { Panel, Badge, clsx } from './ui';
 import { fmtNumber, reasonTag } from './analytics';
 
@@ -149,25 +149,21 @@ export default function RosterGrid({ model, stale }) {
               <span className="rc rc-on" style={{ width: 22, height: 17 }}>
                 <Check size={10} strokeWidth={3.2} aria-hidden="true" />
               </span>
-              <span className="text-ink">Powered</span> — on the generator this hour
+              <span className="text-ink">Powered</span> — on the generator
             </span>
             <span className="legend-item">
               <span className="rc rc-off" style={{ width: 22, height: 17 }}>
                 <X size={10} strokeWidth={3.2} aria-hidden="true" />
               </span>
-              <span className="text-ink">Dark</span> — shed; click, tap or focus for the reason
+              <span className="text-ink">Dark</span> — shed; open for the reason
             </span>
             <span className="legend-item">
               <span className="rc rc-grid" style={{ width: 30, height: 17, fontSize: 8 }}>
                 GRID
               </span>
-              <span className="text-ink">GRID</span> — mains available, genset idle
+              <span className="text-ink">GRID</span> — mains available
             </span>
           </div>
-          <span className="inline-flex items-center gap-1.5">
-            <MousePointerClick size={12} aria-hidden="true" />
-            {hours.length} columns scroll horizontally on narrow screens
-          </span>
         </>
       }
     >
@@ -201,7 +197,7 @@ export default function RosterGrid({ model, stale }) {
                       aria-hidden="true"
                       className={clsx(
                         'h-6 w-[2px] shrink-0 rounded-full',
-                        shop.type === 'mandatory' ? 'bg-volt/75' : 'bg-hairline-strong'
+                        shop.type === 'mandatory' ? 'bg-volt' : 'bg-hairline-strong'
                       )}
                     />
                     <span className="min-w-0">
@@ -230,7 +226,7 @@ export default function RosterGrid({ model, stale }) {
                   <span
                     className={clsx(
                       'num inline-flex min-w-[26px] justify-center rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold',
-                      shop.darkHours > 0 ? 'bg-amber/12 text-amber' : 'text-ink-faint'
+                      shop.darkHours > 0 ? 'bg-amber/10 text-amber' : 'text-ink-faint'
                     )}
                     title={
                       shop.darkHours > 0
