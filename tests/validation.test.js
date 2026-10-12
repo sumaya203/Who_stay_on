@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateRequest } from '../src/lib/validation.js';
+import { inspectRequest, validateRequest } from '../src/lib/validation.js';
 
 const valid = () => ({
   grid_available: [true, false, false, true, false, false, true, true, false, true],
@@ -131,5 +131,66 @@ describe('validation rejects malformed input with usable messages', () => {
   it('reports every problem at once instead of stopping at the first', () => {
     const result = validateRequest({ grid_available: [], generator_capacity_kw: 0, shops: 'nope' });
     expect(result.errors.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('inspectRequest tags every message with its request field', () => {
+  it('returns an empty issue list for a valid payload and agrees with validateRequest', () => {
+    const body = valid();
+    const inspection = inspectRequest(body);
+    expect(inspection.valid).toBe(true);
+    expect(inspection.issues).toEqual([]);
+    expect(inspection.errors).toEqual(validateRequest(body).errors);
+  });
+
+  it('maps the classic six-error payload onto the six documented fields', () => {
+    // the exact symptom reported from the dashboard: every top-level field
+    // rejected at once — each message must be attributable to its field
+    const inspection = inspectRequest({});
+    expect(inspection.valid).toBe(false);
+    const fieldOf = (field) => inspection.issues.filter((i) => i.field === field).map((i) => i.message);
+
+    expect(fieldOf('grid_available')).toEqual(['grid_available must be an array of exactly 10 booleans']);
+    expect(fieldOf('generator_capacity_kw')).toEqual(['generator_capacity_kw must be a positive integer']);
+    expect(fieldOf('fuel_budget_litres')).toEqual(['fuel_budget_litres must be a nonnegative number']);
+    expect(fieldOf('max_consecutive_dark')).toEqual(['max_consecutive_dark must be a nonnegative integer']);
+    expect(fieldOf('fuel_table')).toEqual(['fuel_table must be a non-empty array']);
+    expect(fieldOf('shops')).toEqual(['shops must be an array']);
+    // nothing lands on an unknown field
+    expect(inspection.issues.every((i) => typeof i.field === 'string' && i.field.length > 0)).toBe(true);
+  });
+
+  it('tags nested fuel_table and shops problems with their top-level field', () => {
+    const inspection = inspectRequest(
+      mutate({
+        fuel_table: [{ load_kw: 50, litres_per_hour: 1 }, { load_kw: 20, litres_per_hour: 2 }],
+        shops: [{ id: 'A', kw: -1, type: 'vip', value_per_slot: [1] }],
+      })
+    );
+    expect(inspection.issues.filter((i) => i.field === 'fuel_table').length).toBe(2); // ordering + coverage
+    const tableIssues = inspection.issues.filter((i) => i.field === 'fuel_table').map((i) => i.message);
+    expect(tableIssues.join(' | ')).toMatch(/strictly increasing/);
+    expect(tableIssues.join(' | ')).toMatch(/coverage/);
+    const shopIssues = inspection.issues.filter((i) => i.field === 'shops').map((i) => i.message);
+    expect(shopIssues.join(' | ')).toMatch(/positive integer/);
+    expect(shopIssues.join(' | ')).toMatch(/'mandatory' or 'normal'/);
+    expect(shopIssues.join(' | ')).toMatch(/exactly 10/);
+  });
+
+  it('never reports success while validateRequest reports errors (one source of truth)', () => {
+    for (const body of [
+      {},
+      mutate({ grid_available: [true] }),
+      mutate({ generator_capacity_kw: '100' }),
+      mutate({ fuel_budget_litres: '50' }),
+      mutate({ fuel_table: 'none' }),
+      mutate({ shops: null }),
+      valid(),
+    ]) {
+      const a = inspectRequest(body);
+      const b = validateRequest(body);
+      expect(a.valid).toBe(b.valid);
+      expect(a.errors).toEqual(b.errors);
+    }
   });
 });

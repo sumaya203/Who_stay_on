@@ -358,7 +358,7 @@ export function InputPreview({ model, onLoadSample, onRun, canRun, running }) {
 }
 
 /**
- * Keeps every sidebar target real before a schedule exists: the analytics,
+ * Keeps every navigation target real before a schedule exists: the analytics,
  * statistics and explanation sections stay on the page as compact pending
  * tiles instead of vanishing (so navigation never points at nothing).
  */

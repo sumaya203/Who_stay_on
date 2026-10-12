@@ -91,10 +91,12 @@ export function Spinner({ size = 14, className }) {
   return <Loader2 size={size} className={clsx('spin', className)} aria-hidden="true" />;
 }
 
-/** Numeric readout with unit + optional meter used by the summary row. */
-export function StatCard({ label, value, unit, foot, icon: Icon, tone, meter, emphasis, className }) {
+/** Numeric readout with unit + optional meter used by the summary row.
+ *  `accent` paints the card's icon chip and accent rail in the palette colour
+ *  that matches its meaning (blue · green · red · teal · amber · purple). */
+export function StatCard({ label, value, unit, foot, icon: Icon, tone, meter, meterTone, emphasis, accent, className }) {
   return (
-    <article className={clsx('card stat-card', className)} data-tone={tone}>
+    <article className={clsx('card stat-card', className)} data-tone={tone} data-accent={accent}>
       <div className="stat-top">
         <span className="stat-label">{label}</span>
         {Icon ? (
@@ -112,7 +114,7 @@ export function StatCard({ label, value, unit, foot, icon: Icon, tone, meter, em
         {unit ? <span className="stat-unit">{unit}</span> : null}
       </p>
       {meter !== undefined && meter !== null ? (
-        <div className="meter" role="presentation">
+        <div className="meter" data-tone={meterTone} role="presentation">
           <span style={{ width: `${Math.max(0, Math.min(1, meter)) * 100}%` }} />
         </div>
       ) : null}

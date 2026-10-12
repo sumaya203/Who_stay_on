@@ -20,7 +20,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         />
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="theme-color" content="#0b1f3a" />
       </head>
       <body className="antialiased min-h-screen bg-canvas text-ink">{children}</body>
     </html>
