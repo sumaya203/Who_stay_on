@@ -1,0 +1,75 @@
+{
+  "status": "ok",
+  "roster": {
+    "slot_1": {
+      "powered": [
+        "A_MANDATORY"
+      ],
+      "dark": [
+        {
+          "id": "B_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        },
+        {
+          "id": "C_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        }
+      ]
+    },
+    "slot_2": {
+      "powered": [
+        "A_MANDATORY",
+        "B_NORMAL"
+      ],
+      "dark": [
+        {
+          "id": "C_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        }
+      ]
+    },
+    "slot_4": {
+      "powered": [
+        "A_MANDATORY",
+        "B_NORMAL"
+      ],
+      "dark": [
+        {
+          "id": "C_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        }
+      ]
+    },
+    "slot_5": {
+      "powered": [
+        "A_MANDATORY",
+        "C_NORMAL"
+      ],
+      "dark": [
+        {
+          "id": "B_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        }
+      ]
+    },
+    "slot_8": {
+      "powered": [
+        "A_MANDATORY",
+        "B_NORMAL"
+      ],
+      "dark": [
+        {
+          "id": "C_NORMAL",
+          "reason": "Shop was kept dark to conserve the shared diesel budget and maximize global value across the day's schedule trade-offs."
+        }
+      ]
+    }
+  },
+  "value_total": 150,
+  "fuel_total_litres": 14.3,
+  "dark_hours": {
+    "A_MANDATORY": 0,
+    "B_NORMAL": 2,
+    "C_NORMAL": 4
+  }
+}

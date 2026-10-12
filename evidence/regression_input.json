@@ -1,0 +1,84 @@
+{
+  "grid_available": [
+    true,
+    false,
+    false,
+    true,
+    false,
+    false,
+    true,
+    true,
+    false,
+    true
+  ],
+  "generator_capacity_kw": 100,
+  "fuel_budget_litres": 50,
+  "max_consecutive_dark": 2,
+  "fuel_table": [
+    {
+      "load_kw": 30,
+      "litres_per_hour": 1.5
+    },
+    {
+      "load_kw": 70,
+      "litres_per_hour": 3.2
+    },
+    {
+      "load_kw": 100,
+      "litres_per_hour": 5
+    }
+  ],
+  "shops": [
+    {
+      "id": "A_MANDATORY",
+      "kw": 20,
+      "type": "mandatory",
+      "value_per_slot": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10
+      ]
+    },
+    {
+      "id": "B_NORMAL",
+      "kw": 40,
+      "type": "normal",
+      "value_per_slot": [
+        5,
+        15,
+        25,
+        5,
+        20,
+        10,
+        5,
+        5,
+        30,
+        5
+      ]
+    },
+    {
+      "id": "C_NORMAL",
+      "kw": 30,
+      "type": "normal",
+      "value_per_slot": [
+        10,
+        5,
+        10,
+        15,
+        5,
+        25,
+        10,
+        10,
+        5,
+        10
+      ]
+    }
+  ]
+}
