@@ -19,6 +19,8 @@ import {
   ErrorState,
 } from './components/States';
 import { Panel, Badge } from './components/ui';
+import { buildModel, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
+import { scrollToSection, SECTION_IDS, useActiveSection, NAV_GROUPS } from './components/nav';
 import { buildModel, deriveContract, errorLines, fmtLitres, fmtNumber, parseConfig } from './components/analytics';
 import { scrollToSection, SECTION_IDS, useActiveSection } from './components/nav';
 import { inspectRequest } from '@/lib/validation.js';
@@ -409,6 +411,91 @@ export default function Page() {
 
   return (
     <div className="app-shell">
+      <div className="app-body">
+        <div className="main-col">
+          <TopBar
+            solver={solver}
+            lastRun={lastRun}
+            status={result?.status}
+            stale={stale}
+            onRun={handleSubmit}
+            running={loading}
+            canRun={canRun}
+          />
+
+          <nav className="horizontal-nav no-print" aria-label="Dashboard sections">
+            {NAV_GROUPS.flatMap((group) => group.items).map((item) => {
+              const Icon = item.icon;
+              return <a key={item.id} href={`#${item.id}`} className="horizontal-link" data-active={activeId === item.id ? 'true' : 'false'} aria-current={activeId === item.id ? 'true' : undefined} onClick={(event) => { event.preventDefault(); onNavigate(item.id); }}><Icon size={15} aria-hidden="true" /><span>{item.label}</span>{chips[item.id] ? <small>{chips[item.id]}</small> : null}</a>;
+            })}
+          </nav>
+          <main className="content">
+            <div className="dashboard-hero no-print">
+              <div className="hero-copy"><span className="hero-eyebrow"><span className="hero-spark" /> INTELLIGENT ENERGY PLANNING</span><h2>Make every watt <em>count.</em></h2><p>Plan smarter through every outage. Optimize your generator schedule, protect your priorities, and see the whole picture at a glance.</p><div className="hero-meta"><span>✦ Exact optimization</span><span>✦ Live energy insights</span><span>✦ Built for resilience</span></div></div>
+              <div className="hero-orbit" aria-hidden="true"><div className="orbit-ring orbit-ring-one" /><div className="orbit-ring orbit-ring-two" /><div className="orbit-core">⚡</div><span className="orbit-label orbit-label-a">POWER</span><span className="orbit-label orbit-label-b">OPTIMIZED</span></div>
+            </div>
+            {/* printed letterhead — screen-hidden */}
+            <div className="print-only mb-2">
+              <div className="flex items-baseline justify-between gap-4 border-b border-hairline pb-2">
+                <div className="min-w-0">
+                  <h1 className="text-[16px] font-bold tracking-tight text-ink">Who Stays On? — Generator Schedule</h1>
+                  <p className="text-[10.5px] text-ink-faint">
+                    {fmtNumber(resultModel.summary?.shopCount)} shops · {fmtNumber(resultModel.summary?.outageHours)} outage
+                    hours · {fmtNumber(resultModel.capacity)} kW capacity · {fmtLitres(resultModel.summary?.fuelBudget)} L
+                    budget · value {fmtNumber(result?.value_total)} · fuel {fmtLitres(result?.fuel_total_litres)} L
+                  </p>
+                </div>
+                <p className="text-right text-[9.5px] leading-tight text-ink-muted">
+                  {run.at ? `Run ${run.at}` : 'No run recorded'}
+                  <br />
+                  v{APP_VERSION} · 10:00–19:00
+                </p>
+              </div>
+            </div>
+
+            <section id="overview" className="section-anchor space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2 px-0.5">
+                <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Summary</h2>
+                {stale && phase === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
+                <Badge tone="mute" className="ml-auto">
+                  {model.hours.length
+                    ? `${model.hours.length} slots · ${fmtNumber(model.summary?.shopCount)} shops`
+                    : 'No configuration loaded'}
+                </Badge>
+              </div>
+              <SummaryCards model={model} phase={phase} errorCount={apiLines.length} />
+            </section>
+
+            {phase === 'ok' ? <SuccessStrip model={resultModel} lastRun={lastRun} stale={stale} /> : null}
+
+            <div className="no-print grid items-start gap-3 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-7">
+                <ConfigPanel
+                  jsonInput={jsonInput}
+                  onChange={setInputText}
+                  onFile={handleFileUpload}
+                  onLoadSample={handleLoadSample}
+                  onClear={handleClear}
+                  onRun={handleSubmit}
+                  running={loading}
+                  parse={parse}
+                  summary={inputModel.summary || {}}
+                  apiErrors={errorKind === 'api' ? apiLines : null}
+                  serverNote={errorKind === 'network' ? error : null}
+                  uploadError={uploadError}
+                  stale={stale}
+                />
+              </div>
+              <div className="min-w-0 xl:col-span-5">
+                <RunPanel
+                  phase={phase}
+                  run={run}
+                  result={result}
+                  model={submitted ? resultModel : inputModel}
+                  onDownload={handleDownload}
+                  onPrint={handlePrint}
+                />
+              </div>
       <TopBar
         activeId={activeId}
         chips={chips}

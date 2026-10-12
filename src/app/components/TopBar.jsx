@@ -25,6 +25,20 @@ export default function TopBar({
 }) {
   return (
     <header className="topbar no-print">
+      <div className="topbar-brand" aria-hidden="true"><Zap size={21} fill="currentColor" /></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h1 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-ink sm:text-[18px]">
+            Generator Schedule
+          </h1>
+          {status === 'ok' ? <Badge tone="volt">Scheduled</Badge> : null}
+          {status === 'infeasible' ? <Badge tone="amber">Infeasible</Badge> : null}
+          {stale && status === 'ok' ? <Badge tone="amber">editor changed since this run</Badge> : null}
+        </div>
+        <p className="mt-0.5 hidden truncate text-[11.5px] text-ink-muted sm:block">
+          WHO STAYS ON? · ENERGY OPTIMIZATION STUDIO
+        </p>
+      </div>
       <div className="topbar-main">
         <a
           href="#overview"
